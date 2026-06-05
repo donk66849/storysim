@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StorySim 剧情推演</title>
+<style>
+  :root {
+    --bg: #0e0c10;
+    --panel: #17141b;
+    --panel-2: #1e1a23;
+    --border: #2c2733;
+    --text: #d9d3c9;
+    --dim: #8a8290;
+    --amber: #e0b070;
+    --crimson: #c8553d;
+    --yellow: #e8c84d;
+    --purple: #c08adb;
+    --cyan: #6fb8c8;
+    --ok: #7fb069;
+    --err: #d9646b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #1a1320 0%, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+  }
+  .serif { font-family: "Noto Serif SC", "Songti SC", "SimSun", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 20px; }
+  .hidden { display: none !important; }
+
+  h1.title { font-size: 30px; letter-spacing: 2px; margin: 0; }
+  .muted { color: var(--dim); font-size: 14px; }
+
+  input, textarea, select {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; font-size: 15px; font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--amber); }
+  textarea { resize: vertical; }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 14px 0 5px; }
+
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer;
+    font-family: inherit; transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--amber); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary {
+    background: linear-gradient(135deg, var(--amber), var(--crimson));
+    color: #1a1014; border: none; font-weight: 600;
+  }
+  button.ghost { background: transparent; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .spacer { flex: 0 0 auto; }
+
+  /* ---------- 向导 ---------- */
+  #wizard { padding: 48px 0 80px; }
+  .head { text-align: center; margin-bottom: 8px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; margin-top: 16px;
+  }
+  .char-card { position: relative; }
+  .char-card .del {
+    position: absolute; top: 12px; right: 12px; padding: 4px 10px; font-size: 12px;
+  }
+  .sec-title { font-size: 15px; color: var(--amber); margin: 0 0 4px; letter-spacing: 1px; }
+
+  /* ---------- 剧场 ---------- */
+  #theater { display: flex; flex-direction: column; height: 100vh; }
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    background: rgba(20,16,24,.7); backdrop-filter: blur(6px);
+  }
+  .topbar .t-title { font-size: 18px; letter-spacing: 1px; }
+  .topbar .round { color: var(--amber); font-variant-numeric: tabular-nums; }
+  .topbar .grow { flex: 1; }
+  .icon-btn { padding: 6px 11px; }
+
+  .feed { flex: 1; overflow-y: auto; padding: 26px 0 12px; }
+  .feed .wrap > * { animation: fade .4s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .ev { margin: 14px 0; }
+  .ev.narration { color: var(--dim); font-style: italic; text-align: center; }
+  .ev.speech .name { color: var(--amber); font-weight: 600; margin-right: 4px; }
+  .ev.world { color: var(--yellow); font-weight: 600; }
+  .ev.director { color: var(--purple); }
+  .ev.error { color: var(--err); border-left: 2px solid var(--err); padding-left: 10px; }
+  .round-sep {
+    text-align: center; color: var(--dim); font-size: 12px; letter-spacing: 3px;
+    margin: 26px 0 6px; opacity: .7;
+  }
+  .round-sep::before, .round-sep::after { content: "—— "; }
+  .round-sep::after { content: " ——"; }
+
+  .bottombar {
+    border-top: 1px solid var(--border); padding: 14px 20px;
+    background: var(--panel); display: flex; gap: 12px; align-items: center;
+  }
+  .bottombar .grow { flex: 1; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #1a1014;
+    border-top-color: transparent; border-radius: 50%; animation: rot .7s linear infinite;
+    vertical-align: -2px; margin-right: 7px; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* ---------- 导演面板 ---------- */
+  #director {
+    border-top: 1px solid var(--border); background: var(--panel-2);
+    max-height: 50vh; overflow-y: auto; padding: 6px 0 18px;
+  }
+  #director .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #director .block { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; }
+  #director .block.full { grid-column: 1 / -1; }
+  @media (max-width: 680px) { #director .grid { grid-template-columns: 1fr; } }
+
+  /* ---------- 浮层 ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; z-index: 20; }
+  .modal { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px; width: 380px; max-width: 90vw; }
+
+  /* ---------- toast ---------- */
+  #toasts { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; gap: 8px; z-index: 50; align-items: center; }
+  .toast { background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 16px; font-size: 14px; animation: fade .25s ease;
+    box-shadow: 0 6px 24px rgba(0,0,0,.4); max-width: 80vw; }
+  .toast.ok { border-color: var(--ok); }
+  .toast.err { border-color: var(--err); color: var(--err); }
+
+  .ending { text-align: center; color: var(--amber); margin: 30px 0; }
+  .ending .paths { color: var(--dim); font-size: 13px; word-break: break-all; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ============ 向导 ============ -->
+<section id="wizard" class="wrap">
+  <div class="head">
+    <h1 class="title serif">StorySim 剧情推演</h1>
+    <p class="muted">设定人物与故事背景,然后以导演 / 上帝视角把剧情掰向你想看的方向。</p>
+  </div>
+
+  <div class="card">
+    <p class="sec-title">故事背景</p>
+    <label>故事标题</label>
+    <input id="w-title" placeholder="例如:雨夜古宅">
+    <label>场景设定(背景、地点、初始处境)</label>
+    <textarea id="w-scene" rows="3" placeholder="例如:三个陌生人被暴雨困在一座断电的古宅里,大门反锁,只有烛光摇曳。"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <p class="sec-title" style="margin:0">登场人物</p>
+      <div class="spacer">
+        <button class="ghost" id="w-add">+ 添加角色</button>
+      </div>
+    </div>
+    <div id="w-chars"></div>
+  </div>
+
+  <div class="card">
+    <p class="sec-title">设置</p>
+    <div class="row">
+      <div>
+        <label>总轮数 (max_rounds)</label>
+        <input id="w-rounds" type="number" min="1" value="20">
+      </div>
+      <div>
+        <label>上下文窗口 (k,留空=全部历史)</label>
+        <input id="w-k" type="number" min="1" placeholder="全部">
+      </div>
+    </div>
+    <p class="muted" style="margin-top:8px">k 越小,每回合喂给模型的最近事件越少,更省 token 但记忆更短。</p>
+  </div>
+
+  <div class="row" style="margin-top:22px">
+    <button class="ghost" id="w-preset">载入示例(雨夜古宅)</button>
+    <button class="primary" id="w-start">▶ 开演</button>
+  </div>
+</section>
+
+<!-- ============ 剧场 ============ -->
+<section id="theater" class="hidden">
+  <div class="topbar">
+    <span class="t-title serif" id="t-title"></span>
+    <span class="round" id="t-round"></span>
+    <span class="grow"></span>
+    <button class="icon-btn ghost" id="t-settings">⚙ 设置</button>
+    <button class="icon-btn ghost" id="t-newstory">↩ 新故事</button>
+  </div>
+
+  <div class="feed" id="feed">
+    <div class="wrap" id="feed-inner"></div>
+  </div>
+
+  <div id="director" class="hidden">
+    <div class="wrap">
+      <div class="grid">
+        <div class="block">
+          <p class="sec-title">注入世界事件</p>
+          <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了"></textarea>
+          <div style="margin-top:8px"><button id="d-event-btn">注入</button></div>
+        </div>
+        <div class="block">
+          <p class="sec-title">私下叮嘱角色</p>
+          <select id="d-tell-who"></select>
+          <textarea id="d-tell" rows="2" style="margin-top:8px" placeholder="只进该角色私有记忆,例如:你藏着一把钥匙"></textarea>
+          <div style="margin-top:8px"><button id="d-tell-btn">叮嘱</button></div>
+        </div>
+        <div class="block full">
+          <p class="sec-title">修改角色设定</p>
+          <div class="row">
+            <select id="d-set-who"></select>
+            <select id="d-set-field">
+              <option value="goal">目标 goal</option>
+              <option value="persona">人设 persona</option>
+              <option value="voice">说话风格 voice</option>
+            </select>
+          </div>
+          <input id="d-set-val" style="margin-top:8px" placeholder="新的值,例如:隐瞒真相">
+          <div style="margin-top:8px"><button id="d-set-btn">修改</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <button class="ghost" id="t-director-toggle">✎ 导演</button>
+    <button class="ghost" id="t-save">💾 存档</button>
+    <span class="grow"></span>
+    <button class="primary" id="t-next">▶ 继续下一回合</button>
+  </div>
+</section>
+
+<!-- ============ 设置浮层 ============ -->
+<div id="settings-overlay" class="overlay hidden">
+  <div class="modal">
+    <p class="sec-title">设置</p>
+    <label>总轮数 (max_rounds)</label>
+    <input id="s-rounds" type="number" min="1">
+    <label>上下文窗口 (k,留空=全部)</label>
+    <input id="s-k" type="number" min="1" placeholder="全部">
+    <div class="row" style="margin-top:18px">
+      <button class="ghost" id="s-cancel">取消</button>
+      <button class="primary" id="s-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { sid: null, chars: [], round: 0, maxRounds: 20, busy: false };
+
+/* ---------- 通用 ---------- */
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch (e) {}
+    throw new Error(detail);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ---------- 向导 ---------- */
+function charCard(c = {}) {
+  const div = document.createElement("div");
+  div.className = "card char-card";
+  div.innerHTML = `
+    <button class="ghost del">删除</button>
+    <label>姓名</label><input class="c-name" placeholder="例如:林探长">
+    <label>人设(性格、身份)</label><input class="c-persona" placeholder="退休侦探,多疑、逻辑强">
+    <label>目标</label><input class="c-goal" placeholder="查清古宅里发生过什么">
+    <label>说话风格</label><input class="c-voice" placeholder="冷静,爱用反问">`;
+  div.querySelector(".c-name").value = c.name || "";
+  div.querySelector(".c-persona").value = c.persona || "";
+  div.querySelector(".c-goal").value = c.goal || "";
+  div.querySelector(".c-voice").value = c.voice || "";
+  div.querySelector(".del").onclick = () => div.remove();
+  return div;
+}
+
+function addChar(c) { $("w-chars").appendChild(charCard(c)); }
+
+function collectChars() {
+  return [...$("w-chars").querySelectorAll(".char-card")].map((d) => ({
+    name: d.querySelector(".c-name").value.trim(),
+    persona: d.querySelector(".c-persona").value.trim(),
+    goal: d.querySelector(".c-goal").value.trim(),
+    voice: d.querySelector(".c-voice").value.trim(),
+  })).filter((c) => c.name);
+}
+
+$("w-add").onclick = () => addChar();
+
+$("w-preset").onclick = async () => {
+  try {
+    const p = await api("/api/preset");
+    $("w-title").value = p.title;
+    $("w-scene").value = p.scene;
+    $("w-rounds").value = p.max_rounds;
+    $("w-chars").innerHTML = "";
+    p.characters.forEach(addChar);
+    toast("已载入示例", "ok");
+  } catch (e) { toast(e.message, "err"); }
+};
+
+$("w-start").onclick = async () => {
+  const title = $("w-title").value.trim();
+  const scene = $("w-scene").value.trim();
+  const chars = collectChars();
+  if (!title) return toast("请填写故事标题", "err");
+  if (!scene) return toast("请填写场景设定", "err");
+  if (chars.length === 0) return toast("至少添加一个有姓名的角色", "err");
+  const kRaw = $("w-k").value.trim();
+  const body = {
+    title, scene, characters: chars,
+    max_rounds: parseInt($("w-rounds").value) || 20,
+    k: kRaw ? parseInt(kRaw) : null,
+  };
+  try {
+    const s = await api("/api/story", { method: "POST", body: JSON.stringify(body) });
+    enterTheater(s);
+  } catch (e) { toast("开演失败:" + e.message, "err"); }
+};
+
+/* ---------- 剧场 ---------- */
+function enterTheater(s) {
+  state.sid = s.session_id;
+  state.chars = s.characters;
+  state.round = s.round;
+  state.maxRounds = s.max_rounds;
+  $("t-title").textContent = s.title;
+  $("feed-inner").innerHTML = "";
+  fillCharSelects();
+  updateRound();
+  $("wizard").classList.add("hidden");
+  $("theater").classList.remove("hidden");
+}
+
+function fillCharSelects() {
+  const opts = state.chars.map((c) => `<option>${c.name}</option>`).join("");
+  $("d-tell-who").innerHTML = opts;
+  $("d-set-who").innerHTML = opts;
+}
+
+function updateRound() {
+  $("t-round").textContent = `第 ${state.round} / ${state.maxRounds} 回合`;
+  const ended = state.round >= state.maxRounds;
+  $("t-next").textContent = ended ? "✓ 已达总轮数" : "▶ 继续下一回合";
+  $("t-next").disabled = ended || state.busy;
+}
+
+function feedEl() { return $("feed-inner"); }
+function scrollFeed() { const f = $("feed"); f.scrollTop = f.scrollHeight; }
+
+function roundSep(n) {
+  const d = document.createElement("div");
+  d.className = "round-sep";
+  d.textContent = `第 ${n} 回合`;
+  feedEl().appendChild(d);
+}
+
+function renderEvent(ev) {
+  const d = document.createElement("div");
+  if (ev.type === "narration") {
+    d.className = "ev narration";
+    d.textContent = `〔${ev.content}〕`;
+  } else if (ev.type === "world_event") {
+    d.className = "ev world";
+    d.textContent = `【世界】${ev.content}`;
+  } else if (ev.type === "director") {
+    d.className = "ev director";
+    d.textContent = `【导演】${ev.content}`;
+  } else {
+    d.className = "ev speech";
+    d.innerHTML = `<span class="name"></span><span class="ct"></span>`;
+    d.querySelector(".name").textContent = ev.actor + "：";
+    d.querySelector(".ct").textContent = ev.content;
+  }
+  feedEl().appendChild(d);
+  scrollFeed();
+}
+
+function renderError(msg) {
+  const d = document.createElement("div");
+  d.className = "ev error";
+  d.textContent = "⚠ " + msg;
+  feedEl().appendChild(d);
+  scrollFeed();
+}
+
+async function nextRound() {
+  if (state.busy) return;
+  state.busy = true;
+  const btn = $("t-next");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spin"></span>演绎中…`;
+  roundSep(state.round + 1);
+  try {
+    const res = await fetch(`/api/story/${state.sid}/round`);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, i).trim();
+        buf = buf.slice(i + 2);
+        if (!chunk.startsWith("data: ")) continue;
+        const msg = JSON.parse(chunk.slice(6));
+        if (msg.kind === "event") renderEvent(msg.event);
+        else if (msg.kind === "error") renderError(msg.message);
+        else if (msg.kind === "done") state.round = msg.round;
+      }
+    }
+  } catch (e) {
+    renderError("连接中断:" + e.message);
+  } finally {
+    state.busy = false;
+    updateRound();
+    if (state.round >= state.maxRounds) showEnding();
+  }
+}
+
+function showEnding() {
+  if ($("ending-box")) return;
+  const d = document.createElement("div");
+  d.id = "ending-box";
+  d.className = "ending";
+  d.innerHTML = `<div class="serif" style="font-size:22px;letter-spacing:4px">— 剧 终 —</div>
+    <div style="margin-top:10px"><button class="ghost" id="more-btn">再演 +10 回合</button></div>`;
+  feedEl().appendChild(d);
+  scrollFeed();
+  $("more-btn").onclick = async () => {
+    try {
+      const r = await api(`/api/story/${state.sid}/settings`, {
+        method: "PATCH", body: JSON.stringify({ max_rounds: state.maxRounds + 10 }),
+      });
+      state.maxRounds = r.max_rounds;
+      d.remove();
+      updateRound();
+      toast("已延长至 " + state.maxRounds + " 回合", "ok");
+    } catch (e) { toast(e.message, "err"); }
+  };
+}
+
+$("t-next").onclick = nextRound;
+
+/* ---------- 导演面板 ---------- */
+$("t-director-toggle").onclick = () => $("director").classList.toggle("hidden");
+
+async function command(payload, okMsg) {
+  try {
+    const r = await api(`/api/story/${state.sid}/command`, {
+      method: "POST", body: JSON.stringify(payload),
+    });
+    (r.events || []).forEach(renderEvent);
+    toast(r.status || okMsg, "ok");
+    return true;
+  } catch (e) { toast(e.message, "err"); return false; }
+}
+
+$("d-event-btn").onclick = async () => {
+  const v = $("d-event").value.trim();
+  if (!v) return toast("请填写世界事件", "err");
+  if (await command({ kind: "event", value: v })) $("d-event").value = "";
+};
+
+$("d-tell-btn").onclick = async () => {
+  const v = $("d-tell").value.trim();
+  if (!v) return toast("请填写叮嘱内容", "err");
+  if (await command({ kind: "tell", target: $("d-tell-who").value, value: v })) $("d-tell").value = "";
+};
+
+$("d-set-btn").onclick = async () => {
+  const v = $("d-set-val").value.trim();
+  if (!v) return toast("请填写新的值", "err");
+  const who = $("d-set-who").value;
+  const field = $("d-set-field").value;
+  if (await command({ kind: "set", target: who, field, value: v })) {
+    $("d-set-val").value = "";
+    const c = state.chars.find((x) => x.name === who);
+    if (c) c[field] = v;
+  }
+};
+
+$("t-save").onclick = async () => {
+  try {
+    const r = await api(`/api/story/${state.sid}/save`, { method: "POST" });
+    toast("已存档 → " + r.md_path, "ok");
+  } catch (e) { toast(e.message, "err"); }
+};
+
+/* ---------- 设置浮层 ---------- */
+$("t-settings").onclick = () => {
+  $("s-rounds").value = state.maxRounds;
+  $("settings-overlay").classList.remove("hidden");
+};
+$("s-cancel").onclick = () => $("settings-overlay").classList.add("hidden");
+$("s-save").onclick = async () => {
+  const body = {};
+  body.max_rounds = parseInt($("s-rounds").value) || state.maxRounds;
+  const kRaw = $("s-k").value.trim();
+  if (kRaw) body.k = parseInt(kRaw);
+  try {
+    const r = await api(`/api/story/${state.sid}/settings`, {
+      method: "PATCH", body: JSON.stringify(body),
+    });
+    state.maxRounds = r.max_rounds;
+    $("settings-overlay").classList.add("hidden");
+    updateRound();
+    if ($("ending-box") && state.round < state.maxRounds) $("ending-box").remove();
+    toast("设置已保存", "ok");
+  } catch (e) { toast(e.message, "err"); }
+};
+
+$("t-newstory").onclick = () => {
+  if (!confirm("返回新建故事?当前进度仍可在 runs/ 找到存档。")) return;
+  $("theater").classList.add("hidden");
+  $("wizard").classList.remove("hidden");
+};
+
+/* ---------- 初始化 ---------- */
+addChar();

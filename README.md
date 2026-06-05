@@ -18,7 +18,22 @@ LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL_NAME=deepseek-chat
 ```
 
-## 运行
+## Web 界面(推荐)
+
+```bash
+py -3.12 -m pip install -r requirements.txt
+py -3.12 -m uvicorn web.server:app          # 加 --reload 可热重载
+```
+
+浏览器打开 `http://127.0.0.1:8000`:
+
+1. **创建向导** —— 填故事标题、场景背景,增删角色(人设 / 目标 / 说话风格),设总轮数;可一键「载入示例」。
+2. **剧场** —— 点「继续下一回合」逐条看旁白与各角色流式演绎;右上设置齿轮随时改轮数 / 上下文窗口。
+3. **导演面板** —— 表单式注入世界事件、私下叮嘱某角色、修改角色字段,或一键存档。
+
+后端复用同一套引擎,故事同样落盘到 `runs/<时间戳>.md` 与 `.jsonl`。
+
+## 命令行运行
 
 ```bash
 py -3.12 main.py                      # 跑默认故事 config/雨夜古宅.yaml
