@@ -142,6 +142,14 @@ def test_settings_can_reset_k_to_null():
     assert out["k"] is None
 
 
+def test_index_html_is_well_formed():
+    client = make_client([])
+    html = client.get("/").text
+    # 缺了 </script> 会让浏览器永不执行内联脚本(向导按钮全失效)
+    for tag in ("<script>", "</script>", "</body>", "</html>"):
+        assert tag in html, f"index.html 缺少 {tag}"
+
+
 def test_delete_session():
     client = make_client(["x"] * 10)
     sid = _create(client)
