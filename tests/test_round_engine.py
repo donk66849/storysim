@@ -48,6 +48,29 @@ def test_on_event_called_for_each_event_in_order():
     ]
 
 
+def test_finale_round_appends_closing_epilogue():
+    stage = Stage("场景")
+    chars = make_chars()
+    # 开场旁白、甲、乙,最后再加一条旁白大结局
+    llm = FakeLLM(["开场", "甲台词", "乙台词", "尘埃落定的大结局"])
+    produced = play_round(stage, Narrator(), chars, llm, finale=True)
+    assert [(e.type, e.actor) for e in produced] == [
+        ("narration", "旁白"),
+        ("speech", "甲"),
+        ("speech", "乙"),
+        ("narration", "旁白"),
+    ]
+    assert produced[-1].content == "尘埃落定的大结局"
+
+
+def test_non_finale_round_has_no_epilogue():
+    stage = Stage("场景")
+    chars = make_chars()
+    llm = FakeLLM(["旁白词", "甲的台词", "乙的台词"])
+    produced = play_round(stage, Narrator(), chars, llm, finale=False)
+    assert len(produced) == 3  # 不多出大结局旁白
+
+
 def test_play_round_advances_round_number_each_call():
     stage = Stage("场景")
     chars = make_chars()

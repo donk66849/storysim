@@ -134,6 +134,19 @@ def test_failed_round_rolls_back_round():
     assert client.get(f"/api/story/{sid}/state").json()["round"] == 0
 
 
+def test_finale_round_streams_closing_epilogue():
+    client = make_client(["开场", "甲说", "乙说", "尘埃落定"])  # 2 角色 + 大结局
+    r = client.post("/api/story", json={**STORY, "max_rounds": 1})
+    sid = r.json()["session_id"]
+    frames = read_sse(client, sid)
+    events = [f["event"] for f in frames if f["kind"] == "event"]
+    assert [e["type"] for e in events] == [
+        "narration", "speech", "speech", "narration",
+    ]
+    assert events[-1]["actor"] == "旁白"
+    assert events[-1]["content"] == "尘埃落定"
+
+
 def test_settings_can_reset_k_to_null():
     client = make_client(["x"] * 10)
     r = client.post("/api/story", json={**STORY, "k": 5})

@@ -23,3 +23,24 @@ def test_narrate_prompt_includes_scene_and_history():
     user = llm.calls[0][-1]["content"]
     assert "暴雨中的古宅" in user
     assert "林探长:门被锁死了" in user
+
+
+def test_finale_narrate_uses_finale_framing():
+    stage = Stage("古宅")
+    stage.start_round()
+    llm = FakeLLM(["最后的雷声炸响。"])
+    Narrator().narrate(stage, llm, finale=True)
+    system = llm.calls[0][0]["content"]
+    assert "最终回合" in system
+
+
+def test_epilogue_writes_closing_narration():
+    stage = Stage("古宅")
+    stage.start_round()
+    llm = FakeLLM(["尘埃落定,众人各自离去。"])
+    event = Narrator().epilogue(stage, llm)
+    assert event.type == "narration"
+    assert event.actor == "旁白"
+    assert event.content == "尘埃落定,众人各自离去。"
+    assert stage.events[-1] is event
+    assert "大结局" in llm.calls[0][0]["content"]

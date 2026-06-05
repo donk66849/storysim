@@ -167,6 +167,9 @@ def play(session_id: str):
     if not session.lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="本回合仍在进行中,请稍候")
 
+    # 即将要演的这一回合就是设定的最后一回合 → 走大结局
+    finale = session.stage.round + 1 >= session.max_rounds
+
     def gen():
         q: queue.Queue = queue.Queue()
         sentinel = object()
@@ -188,6 +191,7 @@ def play(session_id: str):
                     session.llm,
                     k=session.k,
                     on_event=on_event,
+                    finale=finale,
                 )
             except Exception as exc:  # LLM 超时 / 报错
                 if produced == 0:

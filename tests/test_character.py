@@ -40,6 +40,25 @@ def test_act_calls_llm_and_writes_speech_to_stage():
     assert stage.events[-1] is event
 
 
+def test_act_finale_prompt_asks_for_an_ending():
+    stage = Stage("古宅大厅")
+    stage.start_round()
+    ch = make_char()
+    llm = FakeLLM(["我知道凶手是谁了。"])
+    ch.act(stage, llm, finale=True)
+    user = llm.calls[0][-1]["content"]
+    assert "最终回合" in user
+
+
+def test_act_non_finale_prompt_has_no_ending_instruction():
+    stage = Stage("古宅大厅")
+    stage.start_round()
+    ch = make_char()
+    llm = FakeLLM(["谁在那儿?"])
+    ch.act(stage, llm)
+    assert "最终回合" not in llm.calls[0][-1]["content"]
+
+
 def test_act_messages_carry_scene_and_recent_transcript():
     stage = Stage("古宅大厅")
     stage.start_round()

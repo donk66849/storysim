@@ -14,12 +14,16 @@ def play_round(
     llm: LLMClient,
     k: int | None = None,
     on_event: Callable[[Event], None] | None = None,
+    finale: bool = False,
 ) -> list[Event]:
     """跑完一整回合:旁白开场,然后每个角色按固定顺序行动。
     角色台词立刻写回 Stage,故同回合后面的角色能看到前面的(对戏)。
 
     on_event:每产生一条事件就立刻回调一次(用于实时打印 / 落盘),
-    让使用者看到逐条推进而非整回合一次性冒出。"""
+    让使用者看到逐条推进而非整回合一次性冒出。
+
+    finale:最终回合。旁白开场与角色行动都会被引导收尾,所有角色行动后再补一条
+    旁白大结局,给整段剧情一个明确收束。"""
     stage.start_round()
     produced: list[Event] = []
 
@@ -28,7 +32,9 @@ def play_round(
         if on_event is not None:
             on_event(event)
 
-    emit(narrator.narrate(stage, llm, k))
+    emit(narrator.narrate(stage, llm, k, finale=finale))
     for ch in characters:
-        emit(ch.act(stage, llm, k))
+        emit(ch.act(stage, llm, k, finale=finale))
+    if finale:
+        emit(narrator.epilogue(stage, llm, k))
     return produced

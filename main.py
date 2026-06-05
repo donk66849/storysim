@@ -57,8 +57,9 @@ def main() -> None:
         archive.log(event)
 
     while stage.round < cfg.max_rounds:
+        finale = stage.round + 1 >= cfg.max_rounds
         with console.status(f"[dim]第 {stage.round + 1} 回合演绎中…[/dim]"):
-            play_round(stage, narrator, cfg.characters, llm, on_event=emit)
+            play_round(stage, narrator, cfg.characters, llm, on_event=emit, finale=finale)
 
         console.print(
             "\n[dim]导演指令:回车继续 / event: <文本> / tell <角色>: <文本> "
