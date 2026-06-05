@@ -30,8 +30,11 @@ class Character:
         return (
             f"当前场景:{stage.scene}\n\n"
             f"已发生的剧情:\n{stage.transcript(k)}\n\n"
-            f"（轮到你了。以「{self.name}」的身份说一句台词或做一个动作，"
-            f"只输出你自己的内容，简短自然。）"
+            f"（轮到你了，以「{self.name}」的身份行动。要求:\n"
+            f"1. 只用 1-2 句,像剧本台词一样简短,不要写大段旁白式的环境/动作描写。\n"
+            f"2. 不要重复你之前说过的话或做过的动作;每次都要推进剧情——"
+            f"给出新信息、做出新决定,或对最近发生的事做出回应。\n"
+            f"3. 只输出你自己说的话或做的动作,不要替别的角色说话。）"
         )
 
     def act(self, stage: Stage, llm: LLMClient, k: int | None = None) -> Event:
