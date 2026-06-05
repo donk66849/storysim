@@ -363,6 +363,8 @@ function enterTheater(s) {
   updateRound();
   $("wizard").classList.add("hidden");
   $("theater").classList.remove("hidden");
+  // 开演即直接进第一回合,不停留在空的「第 0 回合」
+  if (state.round === 0 && state.round < state.maxRounds) nextRound();
 }
 
 function fillCharSelects() {
