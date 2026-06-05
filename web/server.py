@@ -98,7 +98,11 @@ def _sse(data: dict) -> str:
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    # 开发期禁缓存,避免浏览器拿到旧的 index.html
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/api/preset")
