@@ -34,6 +34,8 @@ def play_round(
 
     emit(narrator.narrate(stage, llm, k, finale=finale))
     for ch in characters:
+        if not ch.active:  # 已退场(死亡/离开)的角色不再发言
+            continue
         emit(ch.act(stage, llm, k, finale=finale))
     if finale:
         emit(narrator.epilogue(stage, llm, k))

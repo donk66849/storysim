@@ -48,6 +48,18 @@ def test_on_event_called_for_each_event_in_order():
     ]
 
 
+def test_inactive_character_does_not_act():
+    stage = Stage("场景")
+    a, b = make_chars()
+    b.active = False  # 乙退场,本回合不应发言
+    llm = FakeLLM(["旁白词", "甲的台词"])
+    produced = play_round(stage, Narrator(), [a, b], llm)
+    assert [(e.type, e.actor) for e in produced] == [
+        ("narration", "旁白"),
+        ("speech", "甲"),
+    ]
+
+
 def test_finale_round_appends_closing_epilogue():
     stage = Stage("场景")
     chars = make_chars()

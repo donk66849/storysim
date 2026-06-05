@@ -63,7 +63,7 @@ def main() -> None:
 
         console.print(
             "\n[dim]导演指令:回车继续 / event: <文本> / tell <角色>: <文本> "
-            "/ set <角色> <字段>=<值> / save / quit[/dim]"
+            "/ set <角色> <字段>=<值> / exit <角色> / enter <角色> / save / quit[/dim]"
         )
         cmd = parse_command(console.input("[bold]导演> [/bold]"))
 

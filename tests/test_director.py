@@ -84,3 +84,37 @@ def test_apply_unknown_character_returns_error():
     status, events = apply_command(cmd, stage, chars)
     assert events == []
     assert "张三" in status
+
+
+def test_exit_command_parsed():
+    cmd = parse_command("exit 老周")
+    assert cmd.kind == "exit"
+    assert cmd.target == "老周"
+
+
+def test_enter_command_parsed():
+    cmd = parse_command("enter 老周")
+    assert cmd.kind == "enter"
+    assert cmd.target == "老周"
+
+
+def test_apply_exit_deactivates_character():
+    stage, chars = make_stage_and_chars()
+    status, events = apply_command(DirectorCommand("exit", target="苏小姐"), stage, chars)
+    assert chars["苏小姐"].active is False
+    assert events == []
+    assert "苏小姐" in status
+
+
+def test_apply_enter_reactivates_character():
+    stage, chars = make_stage_and_chars()
+    chars["苏小姐"].active = False
+    apply_command(DirectorCommand("enter", target="苏小姐"), stage, chars)
+    assert chars["苏小姐"].active is True
+
+
+def test_apply_exit_unknown_character_returns_error():
+    stage, chars = make_stage_and_chars()
+    status, events = apply_command(DirectorCommand("exit", target="张三"), stage, chars)
+    assert events == []
+    assert "张三" in status

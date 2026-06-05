@@ -134,6 +134,19 @@ def test_failed_round_rolls_back_round():
     assert client.get(f"/api/story/{sid}/state").json()["round"] == 0
 
 
+def test_exit_command_then_round_skips_character():
+    client = make_client(["旁白", "甲说"] + ["x"] * 10)
+    sid = _create(client)  # STORY 有 甲、乙
+    out = client.post(
+        f"/api/story/{sid}/command", json={"kind": "exit", "target": "乙"}
+    ).json()
+    assert "乙" in out["status"]
+    frames = read_sse(client, sid)
+    actors = [f["event"]["actor"] for f in frames if f["kind"] == "event"]
+    assert "甲" in actors
+    assert "乙" not in actors  # 乙退场后不再发言
+
+
 def test_finale_round_streams_closing_epilogue():
     client = make_client(["开场", "甲说", "乙说", "尘埃落定"])  # 2 角色 + 大结局
     r = client.post("/api/story", json={**STORY, "max_rounds": 1})

@@ -23,6 +23,10 @@ def parse_command(text: str) -> DirectorCommand:
         return DirectorCommand("quit")
     if s.startswith("event:"):
         return DirectorCommand("event", value=s[len("event:"):].strip())
+    if s.startswith("exit "):
+        return DirectorCommand("exit", target=s[len("exit "):].strip())
+    if s.startswith("enter "):
+        return DirectorCommand("enter", target=s[len("enter "):].strip())
     if s.startswith("tell ") and ":" in s:
         head, value = s[len("tell "):].split(":", 1)
         return DirectorCommand("tell", target=head.strip(), value=value.strip())
@@ -64,5 +68,13 @@ def apply_command(
             return f"角色没有字段「{cmd.field}」", []
         setattr(ch, cmd.field, cmd.value)
         return f"已修改「{cmd.target}」的 {cmd.field}", []
+
+    if cmd.kind in ("exit", "enter"):
+        ch = characters.get(cmd.target)
+        if ch is None:
+            return f"找不到角色「{cmd.target}」", []
+        ch.active = cmd.kind == "enter"
+        word = "重新登场" if ch.active else "退场,后续回合不再发言"
+        return f"「{cmd.target}」已{word}", []
 
     return "无法识别的命令", []

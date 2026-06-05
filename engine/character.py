@@ -12,6 +12,7 @@ class Character:
     goal: str
     voice: str
     private_notes: list[str] = field(default_factory=list)
+    active: bool = True  # 退场(死亡/离开)后置 False,不再参与回合
 
     def system_prompt(self) -> str:
         parts = [
@@ -36,8 +37,8 @@ class Character:
             f"已发生的剧情:\n{stage.transcript(k)}\n\n"
             f"（轮到你了，以「{self.name}」的身份行动。要求:\n"
             f"1. 只用 1-2 句,像剧本台词一样简短,不要写大段旁白式的环境/动作描写。\n"
-            f"2. 不要重复你之前说过的话或做过的动作;每次都要推进剧情——"
-            f"给出新信息、做出新决定,或对最近发生的事做出回应。\n"
+            f"2. 先回应最近发生的事:若刚出现【世界事件】或别的角色刚说/做了要紧的事,"
+            f"你必须先对此作出反应,再推进剧情——给出新信息或做出新决定。不要重复你说过的话。\n"
             f"3. 只输出你自己说的话或做的动作,不要替别的角色说话。"
         )
         if finale:

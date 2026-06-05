@@ -233,6 +233,15 @@
           <input id="d-set-val" style="margin-top:8px" placeholder="新的值,例如:隐瞒真相">
           <div style="margin-top:8px"><button id="d-set-btn">修改</button></div>
         </div>
+        <div class="block full">
+          <p class="sec-title">角色登场 / 退场</p>
+          <div class="row" style="align-items:center">
+            <select id="d-exit-who"></select>
+            <button id="d-exit-btn" class="spacer">退场</button>
+            <button id="d-enter-btn" class="spacer">重新登场</button>
+          </div>
+          <p class="muted" style="margin-top:8px">退场的角色(死亡/离开)在后续回合不再说话。</p>
+        </div>
       </div>
     </div>
   </div>
@@ -368,7 +377,7 @@ function enterTheater(s) {
 }
 
 function fillCharSelects() {
-  for (const sel of [$("d-tell-who"), $("d-set-who")]) {
+  for (const sel of [$("d-tell-who"), $("d-set-who"), $("d-exit-who")]) {
     sel.innerHTML = "";
     for (const c of state.chars) {
       const o = document.createElement("option");
@@ -529,6 +538,11 @@ $("d-set-btn").onclick = async () => {
     if (c) c[field] = v;
   }
 };
+
+$("d-exit-btn").onclick = () =>
+  command({ kind: "exit", target: $("d-exit-who").value });
+$("d-enter-btn").onclick = () =>
+  command({ kind: "enter", target: $("d-exit-who").value });
 
 $("t-save").onclick = async () => {
   try {
