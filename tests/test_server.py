@@ -111,3 +111,39 @@ def test_state_returns_events_after_round():
 def test_unknown_session_404():
     client = make_client([])
     assert client.get("/api/story/nope/state").status_code == 404
+
+
+def test_round_at_max_returns_done_without_advancing():
+    client = make_client(["x"] * 10)
+    r = client.post("/api/story", json={**STORY, "max_rounds": 1})
+    sid = r.json()["session_id"]
+    read_sse(client, sid)  # 第 1 回合,到达上限
+    frames = read_sse(client, sid)  # 再点应直接 done,不演
+    assert [f["kind"] for f in frames] == ["done"]
+    assert frames[0]["round"] == 1
+    assert client.get(f"/api/story/{sid}/state").json()["round"] == 1
+
+
+def test_failed_round_rolls_back_round():
+    client = make_client([])  # 空响应 -> narrator 取响应即抛错
+    sid = _create(client)
+    frames = read_sse(client, sid)
+    kinds = [f["kind"] for f in frames]
+    assert "error" in kinds
+    assert frames[-1] == {"kind": "done", "round": 0}  # 空转回合未消耗轮数
+    assert client.get(f"/api/story/{sid}/state").json()["round"] == 0
+
+
+def test_settings_can_reset_k_to_null():
+    client = make_client(["x"] * 10)
+    r = client.post("/api/story", json={**STORY, "k": 5})
+    sid = r.json()["session_id"]
+    out = client.patch(f"/api/story/{sid}/settings", json={"k": None}).json()
+    assert out["k"] is None
+
+
+def test_delete_session():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    assert client.delete(f"/api/story/{sid}").json() == {"ok": True}
+    assert client.get(f"/api/story/{sid}/state").status_code == 404

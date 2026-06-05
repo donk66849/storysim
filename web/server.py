@@ -1,9 +1,13 @@
 import json
 import queue
+import sys
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+# 允许直接 `python web/server.py` 运行(把项目根加入 import 路径)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -39,6 +43,7 @@ class Session:
     archive: Archive
     max_rounds: int
     k: int | None
+    lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 _sessions: dict[str, Session] = {}
@@ -148,10 +153,27 @@ def create_story(body: StoryIn):
 @app.get("/api/story/{session_id}/round")
 def play(session_id: str):
     session = _get(session_id)
+    # 服务端兜底:到达总轮数就不再演,直接回 done(前端按钮也会禁用)
+    if session.stage.round >= session.max_rounds:
+        return StreamingResponse(
+            iter([_sse({"kind": "done", "round": session.stage.round})]),
+            media_type="text/event-stream",
+        )
+    # 同一会话同一时刻只允许一个回合在演,避免并发把 Stage 改乱
+    if not session.lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="本回合仍在进行中,请稍候")
 
     def gen():
         q: queue.Queue = queue.Queue()
         sentinel = object()
+        round_before = session.stage.round
+        produced = 0
+
+        def on_event(e):
+            nonlocal produced
+            produced += 1
+            session.archive.log(e)  # 在产生处即落盘,客户端中断也不会让 jsonl 缺行
+            q.put(("event", e))
 
         def worker():
             try:
@@ -161,24 +183,28 @@ def play(session_id: str):
                     session.characters,
                     session.llm,
                     k=session.k,
-                    on_event=lambda e: q.put(("event", e)),
+                    on_event=on_event,
                 )
             except Exception as exc:  # LLM 超时 / 报错
+                if produced == 0:
+                    session.stage.round = round_before  # 整回合空转,不消耗轮数
                 q.put(("error", str(exc)))
             finally:
                 q.put((sentinel, None))
 
         threading.Thread(target=worker, daemon=True).start()
-        while True:
-            kind, payload = q.get()
-            if kind is sentinel:
-                break
-            if kind == "event":
-                session.archive.log(payload)
-                yield _sse({"kind": "event", "event": payload.to_dict()})
-            else:
-                yield _sse({"kind": "error", "message": payload})
-        yield _sse({"kind": "done", "round": session.stage.round})
+        try:
+            while True:
+                kind, payload = q.get()
+                if kind is sentinel:
+                    break
+                if kind == "event":
+                    yield _sse({"kind": "event", "event": payload.to_dict()})
+                else:
+                    yield _sse({"kind": "error", "message": payload})
+            yield _sse({"kind": "done", "round": session.stage.round})
+        finally:
+            session.lock.release()
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -224,6 +250,19 @@ def settings(session_id: str, body: SettingsIn):
     session = _get(session_id)
     if body.max_rounds is not None:
         session.max_rounds = body.max_rounds
-    if body.k is not None:
+    # 用 model_fields_set 区分「没传 k」与「显式传 k=null(恢复全部历史)」
+    if "k" in body.model_fields_set:
         session.k = body.k
     return {"max_rounds": session.max_rounds, "k": session.k}
+
+
+@app.delete("/api/story/{session_id}")
+def delete_story(session_id: str):
+    _sessions.pop(session_id, None)
+    return {"ok": True}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="127.0.0.1", port=8000)

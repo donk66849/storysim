@@ -264,7 +264,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { sid: null, chars: [], round: 0, maxRounds: 20, busy: false };
+const state = { sid: null, chars: [], round: 0, maxRounds: 20, k: null, busy: false };
 
 /* ---------- 通用 ---------- */
 function toast(msg, kind = "") {
@@ -356,6 +356,7 @@ function enterTheater(s) {
   state.chars = s.characters;
   state.round = s.round;
   state.maxRounds = s.max_rounds;
+  state.k = s.k;
   $("t-title").textContent = s.title;
   $("feed-inner").innerHTML = "";
   fillCharSelects();
@@ -365,9 +366,15 @@ function enterTheater(s) {
 }
 
 function fillCharSelects() {
-  const opts = state.chars.map((c) => `<option>${c.name}</option>`).join("");
-  $("d-tell-who").innerHTML = opts;
-  $("d-set-who").innerHTML = opts;
+  for (const sel of [$("d-tell-who"), $("d-set-who")]) {
+    sel.innerHTML = "";
+    for (const c of state.chars) {
+      const o = document.createElement("option");
+      o.value = c.name;
+      o.textContent = c.name;
+      sel.appendChild(o);
+    }
+  }
 }
 
 function updateRound() {
@@ -423,8 +430,17 @@ async function nextRound() {
   btn.disabled = true;
   btn.innerHTML = `<span class="spin"></span>演绎中…`;
   roundSep(state.round + 1);
+  const handleFrame = (chunk) => {
+    chunk = chunk.trim();
+    if (!chunk.startsWith("data: ")) return;
+    const msg = JSON.parse(chunk.slice(6));
+    if (msg.kind === "event") renderEvent(msg.event);
+    else if (msg.kind === "error") renderError(msg.message);
+    else if (msg.kind === "done") state.round = msg.round;
+  };
   try {
     const res = await fetch(`/api/story/${state.sid}/round`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -434,15 +450,12 @@ async function nextRound() {
       buf += dec.decode(value, { stream: true });
       let i;
       while ((i = buf.indexOf("\n\n")) >= 0) {
-        const chunk = buf.slice(0, i).trim();
+        handleFrame(buf.slice(0, i));
         buf = buf.slice(i + 2);
-        if (!chunk.startsWith("data: ")) continue;
-        const msg = JSON.parse(chunk.slice(6));
-        if (msg.kind === "event") renderEvent(msg.event);
-        else if (msg.kind === "error") renderError(msg.message);
-        else if (msg.kind === "done") state.round = msg.round;
       }
     }
+    buf += dec.decode();        // 收尾:刷出可能残留的最后一帧
+    if (buf.trim()) handleFrame(buf);
   } catch (e) {
     renderError("连接中断:" + e.message);
   } finally {
@@ -480,6 +493,7 @@ $("t-next").onclick = nextRound;
 $("t-director-toggle").onclick = () => $("director").classList.toggle("hidden");
 
 async function command(payload, okMsg) {
+  if (state.busy) { toast("演绎中,请等本回合结束再干预", "err"); return false; }
   try {
     const r = await api(`/api/story/${state.sid}/command`, {
       method: "POST", body: JSON.stringify(payload),
@@ -524,19 +538,21 @@ $("t-save").onclick = async () => {
 /* ---------- 设置浮层 ---------- */
 $("t-settings").onclick = () => {
   $("s-rounds").value = state.maxRounds;
+  $("s-k").value = state.k == null ? "" : state.k;
   $("settings-overlay").classList.remove("hidden");
 };
 $("s-cancel").onclick = () => $("settings-overlay").classList.add("hidden");
 $("s-save").onclick = async () => {
-  const body = {};
-  body.max_rounds = parseInt($("s-rounds").value) || state.maxRounds;
+  const mr = parseInt($("s-rounds").value);
+  if (!Number.isFinite(mr) || mr < 1) return toast("总轮数需为正整数", "err");
   const kRaw = $("s-k").value.trim();
-  if (kRaw) body.k = parseInt(kRaw);
+  const body = { max_rounds: mr, k: kRaw ? parseInt(kRaw) : null };
   try {
     const r = await api(`/api/story/${state.sid}/settings`, {
       method: "PATCH", body: JSON.stringify(body),
     });
     state.maxRounds = r.max_rounds;
+    state.k = r.k;
     $("settings-overlay").classList.add("hidden");
     updateRound();
     if ($("ending-box") && state.round < state.maxRounds) $("ending-box").remove();
@@ -544,8 +560,13 @@ $("s-save").onclick = async () => {
   } catch (e) { toast(e.message, "err"); }
 };
 
-$("t-newstory").onclick = () => {
+$("t-newstory").onclick = async () => {
+  if (state.busy) return toast("演绎中,请等本回合结束", "err");
   if (!confirm("返回新建故事?当前进度仍可在 runs/ 找到存档。")) return;
+  if (state.sid) {
+    try { await api(`/api/story/${state.sid}`, { method: "DELETE" }); } catch (e) {}
+  }
+  state.sid = null;
   $("theater").classList.add("hidden");
   $("wizard").classList.remove("hidden");
 };
