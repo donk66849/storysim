@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 
+from engine.character import Character
+from engine.events import Event
+from engine.stage import Stage
+
 
 @dataclass
 class DirectorCommand:
@@ -32,3 +36,33 @@ def parse_command(text: str) -> DirectorCommand:
                 "set", target=target.strip(), field=field.strip(), value=value.strip()
             )
     return DirectorCommand("unknown")
+
+
+def apply_command(
+    cmd: DirectorCommand,
+    stage: Stage,
+    characters: dict[str, Character],
+) -> tuple[str, list[Event]]:
+    """施加 event/tell/set 干预。返回 (状态文本, 新增的公共事件列表)。
+    continue/save/quit 等控制流由主循环处理,不在此函数职责内。"""
+    if cmd.kind == "event":
+        event = stage.add("world_event", "世界", cmd.value)
+        return f"已注入世界事件:{cmd.value}", [event]
+
+    if cmd.kind == "tell":
+        ch = characters.get(cmd.target)
+        if ch is None:
+            return f"找不到角色「{cmd.target}」", []
+        ch.private_notes.append(cmd.value)
+        return f"已私下告知「{cmd.target}」", []
+
+    if cmd.kind == "set":
+        ch = characters.get(cmd.target)
+        if ch is None:
+            return f"找不到角色「{cmd.target}」", []
+        if not hasattr(ch, cmd.field):
+            return f"角色没有字段「{cmd.field}」", []
+        setattr(ch, cmd.field, cmd.value)
+        return f"已修改「{cmd.target}」的 {cmd.field}", []
+
+    return "无法识别的命令", []
