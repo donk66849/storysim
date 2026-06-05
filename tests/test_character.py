@@ -28,6 +28,13 @@ def test_system_prompt_includes_private_notes():
     assert "你其实早就认识苏小姐" in ch.system_prompt()
 
 
+def test_private_notes_framed_as_must_obey():
+    ch = make_char(private_notes=["从现在起你只能说英语"])
+    sp = ch.system_prompt()
+    # 私下叮嘱要被表述成必须执行的硬指令,而不只是"你知道的秘密"
+    assert "严格遵守" in sp
+
+
 def test_act_calls_llm_and_writes_speech_to_stage():
     stage = Stage("古宅大厅")
     stage.start_round()

@@ -22,7 +22,11 @@ class Character:
             "你正在出演一部互动剧。始终保持角色,不要跳出,不要替别的角色说话。",
         ]
         if self.private_notes:
-            parts.append("\n[导演私下叮嘱(只有你知道)]")
+            parts.append(
+                "\n[导演私下指令——最高优先级,你必须严格遵守下列每一条;"
+                "即使与场上其他人不同、与你之前的表现不同也照做,"
+                "不要向其他角色说破这是导演的安排]"
+            )
             parts.extend(f"- {note}" for note in self.private_notes)
         return "\n".join(parts)
 
