@@ -519,6 +519,12 @@ $("t-next").onclick = nextRound;
 /* ---------- 导演面板 ---------- */
 $("t-director-toggle").onclick = () => $("director").classList.toggle("hidden");
 
+// 导演干预完成后:收起面板并自动进入下一回合(未到总轮数才推进)
+function closeDirectorAndAdvance() {
+  $("director").classList.add("hidden");
+  if (state.round < state.maxRounds) nextRound();
+}
+
 async function command(payload, okMsg) {
   if (state.busy) { toast("演绎中,请等本回合结束再干预", "err"); return false; }
   try {
@@ -541,12 +547,16 @@ $("d-event-btn").onclick = async () => {
     await command({ kind: "exit", target: who });
     $("d-event-exit").value = "";
   }
+  closeDirectorAndAdvance();
 };
 
 $("d-tell-btn").onclick = async () => {
   const v = $("d-tell").value.trim();
   if (!v) return toast("请填写叮嘱内容", "err");
-  if (await command({ kind: "tell", target: $("d-tell-who").value, value: v })) $("d-tell").value = "";
+  if (await command({ kind: "tell", target: $("d-tell-who").value, value: v })) {
+    $("d-tell").value = "";
+    closeDirectorAndAdvance();
+  }
 };
 
 $("d-set-btn").onclick = async () => {
@@ -558,13 +568,16 @@ $("d-set-btn").onclick = async () => {
     $("d-set-val").value = "";
     const c = state.chars.find((x) => x.name === who);
     if (c) c[field] = v;
+    closeDirectorAndAdvance();
   }
 };
 
-$("d-exit-btn").onclick = () =>
-  command({ kind: "exit", target: $("d-exit-who").value });
-$("d-enter-btn").onclick = () =>
-  command({ kind: "enter", target: $("d-exit-who").value });
+$("d-exit-btn").onclick = async () => {
+  if (await command({ kind: "exit", target: $("d-exit-who").value })) closeDirectorAndAdvance();
+};
+$("d-enter-btn").onclick = async () => {
+  if (await command({ kind: "enter", target: $("d-exit-who").value })) closeDirectorAndAdvance();
+};
 
 $("t-save").onclick = async () => {
   try {
