@@ -40,5 +40,9 @@ def make_llm_from_env(env: dict | None = None) -> DeepSeekClient:
     import os
 
     env = env if env is not None else os.environ
-    client = OpenAI(api_key=env["LLM_API_KEY"], base_url=env["LLM_BASE_URL"])
+    client = OpenAI(
+        api_key=env["LLM_API_KEY"],
+        base_url=env["LLM_BASE_URL"],
+        timeout=60,
+    )
     return DeepSeekClient(client, env["LLM_MODEL_NAME"])

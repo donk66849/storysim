@@ -48,9 +48,10 @@ def test_make_llm_from_env_reads_config(monkeypatch):
     created = {}
 
     class FakeOpenAI:
-        def __init__(self, api_key, base_url):
+        def __init__(self, api_key, base_url, timeout=None):
             created["api_key"] = api_key
             created["base_url"] = base_url
+            created["timeout"] = timeout
 
     import engine.llm as llm_mod
     monkeypatch.setattr(llm_mod, "OpenAI", FakeOpenAI)

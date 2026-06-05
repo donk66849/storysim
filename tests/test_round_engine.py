@@ -34,6 +34,20 @@ def test_later_character_sees_earlier_character_within_same_round():
     assert "甲:甲的台词" in yi_user
 
 
+def test_on_event_called_for_each_event_in_order():
+    stage = Stage("场景")
+    chars = make_chars()
+    llm = FakeLLM(["旁白词", "甲的台词", "乙的台词"])
+    seen = []
+    produced = play_round(stage, Narrator(), chars, llm, on_event=seen.append)
+    assert seen == produced
+    assert [(e.type, e.actor) for e in seen] == [
+        ("narration", "旁白"),
+        ("speech", "甲"),
+        ("speech", "乙"),
+    ]
+
+
 def test_play_round_advances_round_number_each_call():
     stage = Stage("场景")
     chars = make_chars()

@@ -1,6 +1,6 @@
 title: 雨夜古宅
 scene: 三个陌生人被暴雨困在一座断电的古宅里,大门反锁,只有烛光摇曳。
-max_rounds: 10
+max_rounds: 20
 characters:
   - name: 林探长
     persona: 退休侦探,多疑、逻辑强,直觉这不是意外

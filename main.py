@@ -52,10 +52,13 @@ def main() -> None:
     console.rule(f"[bold]{cfg.title}")
     console.print(f"场景:{cfg.scene}\n", style="dim")
 
+    def emit(event) -> None:
+        print_event(event)
+        archive.log(event)
+
     while stage.round < cfg.max_rounds:
-        for event in play_round(stage, narrator, cfg.characters, llm):
-            print_event(event)
-            archive.log(event)
+        with console.status(f"[dim]第 {stage.round + 1} 回合演绎中…[/dim]"):
+            play_round(stage, narrator, cfg.characters, llm, on_event=emit)
 
         console.print(
             "\n[dim]导演指令:回车继续 / event: <文本> / tell <角色>: <文本> "
