@@ -257,10 +257,26 @@
   <div class="bottombar">
     <button class="ghost" id="t-director-toggle">✎ 导演</button>
     <button class="ghost" id="t-save">💾 存档</button>
+    <button class="ghost" id="t-feedback">💡 提建议</button>
     <span class="grow"></span>
     <button class="primary" id="t-next">▶ 继续下一回合</button>
   </div>
 </section>
+
+<!-- ============ 提建议浮层 ============ -->
+<div id="feedback-overlay" class="overlay hidden">
+  <div class="modal">
+    <p class="sec-title">提个建议</p>
+    <label>你觉得哪里能更好玩 / 哪里有问题</label>
+    <textarea id="fb-text" rows="4" placeholder="想到啥写啥,作者会看的~"></textarea>
+    <label>联系方式(选填,方便回复你)</label>
+    <input id="fb-contact" placeholder="小红书号 / 微信 / 邮箱">
+    <div class="row" style="margin-top:18px">
+      <button class="ghost" id="fb-cancel">取消</button>
+      <button class="primary" id="fb-send">提交</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============ 设置浮层 ============ -->
 <div id="settings-overlay" class="overlay hidden">
@@ -284,6 +300,16 @@ const $ = (id) => document.getElementById(id);
 const state = { sid: null, chars: [], round: 0, maxRounds: 20, k: null, busy: false };
 
 /* ---------- 通用 ---------- */
+// 浏览器稳定 id,配额按它 + IP 双重计数
+function clientId() {
+  let id = localStorage.getItem("storysim_cid");
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+    localStorage.setItem("storysim_cid", id);
+  }
+  return id;
+}
+
 function toast(msg, kind = "") {
   const el = document.createElement("div");
   el.className = "toast " + kind;
@@ -471,7 +497,9 @@ async function nextRound() {
     else if (msg.kind === "done") state.round = msg.round;
   };
   try {
-    const res = await fetch(`/api/story/${state.sid}/round`);
+    const res = await fetch(
+      `/api/story/${state.sid}/round?cid=${encodeURIComponent(clientId())}`
+    );
     if (!res.ok) throw new Error("HTTP " + res.status);
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -584,6 +612,24 @@ $("t-save").onclick = async () => {
   try {
     const r = await api(`/api/story/${state.sid}/save`, { method: "POST" });
     toast("已存档 → " + r.md_path, "ok");
+  } catch (e) { toast(e.message, "err"); }
+};
+
+/* ---------- 提建议 ---------- */
+$("t-feedback").onclick = () => $("feedback-overlay").classList.remove("hidden");
+$("fb-cancel").onclick = () => $("feedback-overlay").classList.add("hidden");
+$("fb-send").onclick = async () => {
+  const text = $("fb-text").value.trim();
+  if (!text) return toast("写点啥再提交呀", "err");
+  try {
+    await api("/api/feedback", {
+      method: "POST",
+      body: JSON.stringify({ text, contact: $("fb-contact").value.trim() }),
+    });
+    $("fb-text").value = "";
+    $("fb-contact").value = "";
+    $("feedback-overlay").classList.add("hidden");
+    toast("谢谢你的建议!", "ok");
   } catch (e) { toast(e.message, "err"); }
 };
 

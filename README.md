@@ -33,6 +33,26 @@ py -3.12 -m uvicorn web.server:app          # 加 --reload 可热重载
 
 后端复用同一套引擎,故事同样落盘到 `runs/<时间戳>.md` 与 `.jsonl`。
 
+## 上线部署
+
+公开访问(如发到小红书引流)前已内置防护:**每日体验配额**(每 IP / 每浏览器 / 全站三道闸,单位=回合)、**输入封顶**(`max_rounds ≤ 30`、角色数与文本长度限制)、以及剧场里的**「提建议」按钮**(留言落到 `runs/feedback.jsonl`)。配额可用环境变量调,见 `.env.example`。
+
+推荐路径(国内轻量服务器):
+
+```bash
+# 1. 代码放 /opt/storysim,建虚拟环境装依赖,.env 填 LLM key
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# 2. systemd 守护(单 worker:会话在进程内存,多 worker 会丢会话)
+sudo cp deploy/storysim.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now storysim
+
+# 3. Caddy 反代 + 自动 HTTPS(改 Caddyfile 里的域名;flush_interval -1 让 SSE 实时下发)
+sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+```
+
+容器化可用根目录 `Dockerfile`(同样单 worker)。**注意**:面向不特定公众正经运营,国内需 ICP 备案与生成式 AI 内容合规;玩票引流量级影响小但需知悉。
+
 ## 命令行运行
 
 ```bash

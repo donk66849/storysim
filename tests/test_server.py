@@ -1,9 +1,11 @@
 import json
+import pathlib
 
 from fastapi.testclient import TestClient
 
 import web.server as server
 from engine.llm import FakeLLM
+from web.limits import Quota
 
 STORY = {
     "title": "测试故事",
@@ -20,6 +22,7 @@ STORY = {
 def make_client(responses):
     server._make_llm = lambda: FakeLLM(list(responses))
     server._sessions.clear()
+    server._quota = Quota()  # 每个测试用例独立的配额计数
     return TestClient(server.app)
 
 
@@ -111,6 +114,51 @@ def test_state_returns_events_after_round():
 def test_unknown_session_404():
     client = make_client([])
     assert client.get("/api/story/nope/state").status_code == 404
+
+
+def test_create_story_rejects_too_many_characters():
+    client = make_client(["x"] * 5)
+    chars = [{"name": f"c{i}", "persona": "", "goal": "", "voice": ""} for i in range(20)]
+    r = client.post("/api/story", json={**STORY, "characters": chars})
+    assert r.status_code == 400
+
+
+def test_create_story_clamps_max_rounds():
+    client = make_client(["x"] * 5)
+    r = client.post("/api/story", json={**STORY, "max_rounds": 9999})
+    assert r.json()["max_rounds"] == server.MAX_ROUNDS_CAP
+
+
+def test_settings_clamps_max_rounds():
+    client = make_client(["x"] * 5)
+    sid = _create(client)
+    out = client.patch(f"/api/story/{sid}/settings", json={"max_rounds": 9999}).json()
+    assert out["max_rounds"] == server.MAX_ROUNDS_CAP
+
+
+def test_round_blocked_when_quota_exhausted():
+    client = make_client(["x"] * 10)
+    server._quota = Quota(per_ip=1, per_client=1000, global_cap=1000)
+    sid = _create(client)
+    read_sse(client, sid)  # 第 1 回合用掉唯一额度
+    frames = read_sse(client, sid)  # 第 2 回合应被配额拦下
+    assert "error" in [f["kind"] for f in frames]
+    assert client.get(f"/api/story/{sid}/state").json()["round"] == 1  # 未推进
+
+
+def test_feedback_recorded():
+    client = make_client([])
+    r = client.post(
+        "/api/feedback", json={"text": "很好玩但希望能配音", "contact": "xhs:abc"}
+    )
+    assert r.json() == {"ok": True}
+    lines = pathlib.Path("runs/feedback.jsonl").read_text(encoding="utf-8").splitlines()
+    assert any("很好玩但希望能配音" in ln for ln in lines)
+
+
+def test_feedback_rejects_empty():
+    client = make_client([])
+    assert client.post("/api/feedback", json={"text": "   "}).status_code == 400
 
 
 def test_round_at_max_returns_done_without_advancing():

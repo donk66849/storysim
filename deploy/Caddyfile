@@ -1,0 +1,8 @@
+# 把 your-domain.com 换成你的域名,Caddy 会自动申请并续期 HTTPS 证书。
+# 关键:flush_interval -1 关闭缓冲,SSE 才能逐条实时下发,否则回合会一次性闷出来。
+your-domain.com {
+    encode gzip
+    reverse_proxy 127.0.0.1:8000 {
+        flush_interval -1
+    }
+}

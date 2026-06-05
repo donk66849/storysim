@@ -4,13 +4,14 @@ import sys
 import threading
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 # 允许直接 `python web/server.py` 运行(把项目根加入 import 路径)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -22,8 +23,15 @@ from engine.llm import make_llm_from_env
 from engine.narrator import Narrator
 from engine.round_engine import play_round
 from engine.stage import Stage
+from web.limits import Quota
 
 load_dotenv()
+
+# 上线防护:输入封顶,单个会话就烧不出天价账单
+MAX_ROUNDS_CAP = 30
+MAX_CHARACTERS = 8
+MAX_TITLE = 100
+MAX_FIELD = 2000
 
 # 可替换的 LLM 工厂(测试注入 FakeLLM)
 _make_llm = make_llm_from_env
@@ -47,6 +55,7 @@ class Session:
 
 
 _sessions: dict[str, Session] = {}
+_quota = Quota()  # 每日体验配额(每 IP / 每浏览器 / 全站)
 
 app = FastAPI(title="StorySim Web")
 
@@ -76,6 +85,26 @@ class CommandIn(BaseModel):
 class SettingsIn(BaseModel):
     max_rounds: int | None = None
     k: int | None = None
+
+
+class FeedbackIn(BaseModel):
+    text: str
+    contact: str | None = None
+
+
+def _validate_story(body: "StoryIn") -> None:
+    if not body.title.strip() or not body.scene.strip():
+        raise HTTPException(status_code=400, detail="标题和场景不能为空")
+    if len(body.title) > MAX_TITLE or len(body.scene) > MAX_FIELD:
+        raise HTTPException(status_code=400, detail="标题或场景过长")
+    named = [c for c in body.characters if c.name.strip()]
+    if not named:
+        raise HTTPException(status_code=400, detail="至少需要一个有名字的角色")
+    if len(body.characters) > MAX_CHARACTERS:
+        raise HTTPException(status_code=400, detail=f"角色最多 {MAX_CHARACTERS} 个")
+    for c in body.characters:
+        if any(len(x) > MAX_FIELD for x in (c.persona, c.goal, c.voice)) or len(c.name) > MAX_TITLE:
+            raise HTTPException(status_code=400, detail="角色字段过长")
 
 
 def _char_dicts(session: Session) -> list[dict]:
@@ -121,6 +150,7 @@ def preset():
 
 @app.post("/api/story")
 def create_story(body: StoryIn):
+    _validate_story(body)
     try:
         llm = _make_llm()
     except Exception as exc:  # 缺 key 等
@@ -128,6 +158,7 @@ def create_story(body: StoryIn):
     characters = [
         Character(name=c.name, persona=c.persona, goal=c.goal, voice=c.voice)
         for c in body.characters
+        if c.name.strip()
     ]
     stage = Stage(body.scene)
     session = Session(
@@ -138,7 +169,7 @@ def create_story(body: StoryIn):
         narrator=Narrator(),
         llm=llm,
         archive=Archive("runs", body.title),
-        max_rounds=body.max_rounds,
+        max_rounds=max(1, min(body.max_rounds, MAX_ROUNDS_CAP)),
         k=body.k,
     )
     sid = uuid.uuid4().hex
@@ -155,7 +186,7 @@ def create_story(body: StoryIn):
 
 
 @app.get("/api/story/{session_id}/round")
-def play(session_id: str):
+def play(session_id: str, request: Request):
     session = _get(session_id)
     # 服务端兜底:到达总轮数就不再演,直接回 done(前端按钮也会禁用)
     if session.stage.round >= session.max_rounds:
@@ -166,6 +197,19 @@ def play(session_id: str):
     # 同一会话同一时刻只允许一个回合在演,避免并发把 Stage 改乱
     if not session.lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="本回合仍在进行中,请稍候")
+    # 每日体验配额:每 IP / 每浏览器 / 全站总量。被拦则礼貌提示,不推进、不扣额度
+    ip = request.client.host if request.client else "?"
+    cid = request.query_params.get("cid", "")
+    reason = _quota.try_consume(ip, cid)
+    if reason is not None:
+        session.lock.release()
+        return StreamingResponse(
+            iter([
+                _sse({"kind": "error", "message": reason}),
+                _sse({"kind": "done", "round": session.stage.round}),
+            ]),
+            media_type="text/event-stream",
+        )
 
     # 即将要演的这一回合就是设定的最后一回合 → 走大结局
     finale = session.stage.round + 1 >= session.max_rounds
@@ -257,7 +301,7 @@ def state(session_id: str):
 def settings(session_id: str, body: SettingsIn):
     session = _get(session_id)
     if body.max_rounds is not None:
-        session.max_rounds = body.max_rounds
+        session.max_rounds = max(1, min(body.max_rounds, MAX_ROUNDS_CAP))
     # 用 model_fields_set 区分「没传 k」与「显式传 k=null(恢复全部历史)」
     if "k" in body.model_fields_set:
         session.k = body.k
@@ -267,6 +311,23 @@ def settings(session_id: str, body: SettingsIn):
 @app.delete("/api/story/{session_id}")
 def delete_story(session_id: str):
     _sessions.pop(session_id, None)
+    return {"ok": True}
+
+
+@app.post("/api/feedback")
+def feedback(body: FeedbackIn):
+    text = body.text.strip()[:MAX_FIELD]
+    if not text:
+        raise HTTPException(status_code=400, detail="反馈内容不能为空")
+    rec = {
+        "at": datetime.now().isoformat(timespec="seconds"),
+        "text": text,
+        "contact": (body.contact or "").strip()[:200],
+    }
+    path = Path("runs") / "feedback.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return {"ok": True}
 
 

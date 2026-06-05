@@ -1,0 +1,18 @@
+# systemd 服务:放到 /etc/systemd/system/storysim.service
+# 然后:sudo systemctl daemon-reload && sudo systemctl enable --now storysim
+# 假设代码在 /opt/storysim、虚拟环境在 /opt/storysim/.venv、.env 在同目录。
+[Unit]
+Description=StorySim web
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/storysim
+EnvironmentFile=/opt/storysim/.env
+# 单 worker:会话存在进程内存里,多 worker 会丢会话(配额计数也才准)
+ExecStart=/opt/storysim/.venv/bin/python -m uvicorn web.server:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
