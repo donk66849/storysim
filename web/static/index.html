@@ -211,8 +211,11 @@
       <div class="grid">
         <div class="block">
           <p class="sec-title">注入世界事件</p>
-          <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了"></textarea>
-          <div style="margin-top:8px"><button id="d-event-btn">注入</button></div>
+          <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了 / 老周突然倒地身亡"></textarea>
+          <div class="row" style="margin-top:8px; align-items:center">
+            <button id="d-event-btn" class="spacer">注入</button>
+            <select id="d-event-exit"></select>
+          </div>
         </div>
         <div class="block">
           <p class="sec-title">私下叮嘱角色</p>
@@ -386,6 +389,19 @@ function fillCharSelects() {
       sel.appendChild(o);
     }
   }
+  // 世界事件块的"顺便让谁退场"选择器:首项为不退场
+  const es = $("d-event-exit");
+  es.innerHTML = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "不让谁退场";
+  es.appendChild(none);
+  for (const c of state.chars) {
+    const o = document.createElement("option");
+    o.value = c.name;
+    o.textContent = `并让「${c.name}」退场`;
+    es.appendChild(o);
+  }
 }
 
 function updateRound() {
@@ -518,7 +534,13 @@ async function command(payload, okMsg) {
 $("d-event-btn").onclick = async () => {
   const v = $("d-event").value.trim();
   if (!v) return toast("请填写世界事件", "err");
-  if (await command({ kind: "event", value: v })) $("d-event").value = "";
+  if (!(await command({ kind: "event", value: v }))) return;
+  $("d-event").value = "";
+  const who = $("d-event-exit").value;
+  if (who) {
+    await command({ kind: "exit", target: who });
+    $("d-event-exit").value = "";
+  }
 };
 
 $("d-tell-btn").onclick = async () => {
