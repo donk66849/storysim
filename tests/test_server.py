@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 import web.server as server
 from engine.llm import FakeLLM
-from web.limits import Quota
+from web.limits import Quota, RateLimiter
 
 STORY = {
     "title": "测试故事",
@@ -23,6 +23,9 @@ def make_client(responses):
     server._make_llm = lambda: FakeLLM(list(responses))
     server._sessions.clear()
     server._quota = Quota()  # 每个测试用例独立的配额计数
+    # 限流器默认放得很宽,免得正常用例被拦;需要测限流的用例自行收紧
+    server._story_limiter = RateLimiter(10_000, 60)
+    server._feedback_limiter = RateLimiter(10_000, 600)
     return TestClient(server.app)
 
 
@@ -229,3 +232,41 @@ def test_delete_session():
     sid = _create(client)
     assert client.delete(f"/api/story/{sid}").json() == {"ok": True}
     assert client.get(f"/api/story/{sid}/state").status_code == 404
+
+
+def test_create_story_rate_limited():
+    client = make_client(["x"] * 50)
+    server._story_limiter = RateLimiter(2, 60)  # 每 IP 每分钟只允许建 2 个
+    assert client.post("/api/story", json=STORY).status_code == 200
+    assert client.post("/api/story", json=STORY).status_code == 200
+    assert client.post("/api/story", json=STORY).status_code == 429
+
+
+def test_feedback_rate_limited():
+    client = make_client([])
+    server._feedback_limiter = RateLimiter(1, 600)
+    assert client.post("/api/feedback", json={"text": "好玩"}).status_code == 200
+    assert client.post("/api/feedback", json={"text": "再来"}).status_code == 429
+
+
+def test_oversized_body_rejected():
+    client = make_client([])
+    huge = "啊" * 100_000  # 远超 64KB 上限
+    assert client.post("/api/feedback", json={"text": huge}).status_code == 413
+
+
+def test_idle_sessions_evicted_on_create():
+    client = make_client(["x"] * 20)
+    sid = _create(client)
+    # 把这个会话标记成早已闲置,下次建故事时应被回收
+    server._sessions[sid].last_active -= server.SESSION_TTL + 1
+    _create(client)
+    assert sid not in server._sessions
+
+
+def test_session_count_capped(monkeypatch):
+    client = make_client(["x"] * 30)
+    monkeypatch.setattr(server, "MAX_SESSIONS", 2)
+    for _ in range(4):
+        _create(client)
+    assert len(server._sessions) <= 2

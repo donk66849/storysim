@@ -8,6 +8,7 @@
     STORYSIM_GLOBAL_DAILY     全站每天回合总上限(默认 2000,钱包保命)
 """
 import os
+import time
 from collections import defaultdict
 from datetime import date
 
@@ -17,6 +18,37 @@ def _env_int(name: str, default: int) -> int:
         return int(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+class RateLimiter:
+    """固定窗口的每-键限流:窗口内最多 max_calls 次,常用键是 IP。
+    进程内内存计数(单 worker 才准),挡的是建会话 / 提反馈这类高频滥用,
+    防内存与磁盘被刷爆。时间用 monotonic;测试可注入 now。"""
+
+    def __init__(self, max_calls: int, window_seconds: float):
+        self.max_calls = max_calls
+        self.window = window_seconds
+        self._hits: dict[str, list[float]] = defaultdict(list)
+
+    def allow(self, key: str, now: float | None = None) -> bool:
+        now = time.monotonic() if now is None else now
+        hits = self._hits[key]
+        cutoff = now - self.window
+        # hits 按时间升序;丢掉窗口外的旧记录
+        drop = 0
+        for t in hits:
+            if t > cutoff:
+                break
+            drop += 1
+        if drop:
+            del hits[:drop]
+        if len(hits) >= self.max_calls:
+            return False
+        hits.append(now)
+        # 顺手回收空键,避免 IP 维度无限增长
+        if not hits and key in self._hits:
+            del self._hits[key]
+        return True
 
 
 class Quota:

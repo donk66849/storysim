@@ -1,7 +1,9 @@
 import json
+import logging
 import queue
 import sys
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from engine.archive import Archive
@@ -23,15 +26,22 @@ from engine.llm import make_llm_from_env
 from engine.narrator import Narrator
 from engine.round_engine import play_round
 from engine.stage import Stage
-from web.limits import Quota
+from web.limits import Quota, RateLimiter, _env_int
 
 load_dotenv()
+
+logger = logging.getLogger("storysim")
 
 # 上线防护:输入封顶,单个会话就烧不出天价账单
 MAX_ROUNDS_CAP = 30
 MAX_CHARACTERS = 8
 MAX_TITLE = 100
 MAX_FIELD = 2000
+
+# 上线防护:会话与请求体上限,挡内存 / 磁盘滥用
+MAX_SESSIONS = _env_int("STORYSIM_MAX_SESSIONS", 500)        # 内存里同时存活的会话数上限
+SESSION_TTL = _env_int("STORYSIM_SESSION_TTL", 1800)          # 闲置多少秒后回收(默认 30 分钟)
+MAX_BODY_BYTES = _env_int("STORYSIM_MAX_BODY_BYTES", 64 * 1024)  # 请求体字节上限
 
 # 可替换的 LLM 工厂(测试注入 FakeLLM)
 _make_llm = make_llm_from_env
@@ -52,12 +62,28 @@ class Session:
     max_rounds: int
     k: int | None
     lock: threading.Lock = field(default_factory=threading.Lock)
+    last_active: float = field(default_factory=time.monotonic)
 
 
 _sessions: dict[str, Session] = {}
 _quota = Quota()  # 每日体验配额(每 IP / 每浏览器 / 全站)
+# 高频接口限流:建故事 / 提反馈,按 IP 挡刷接口的内存与磁盘滥用
+_story_limiter = RateLimiter(_env_int("STORYSIM_CREATE_PER_MIN", 20), 60)
+_feedback_limiter = RateLimiter(_env_int("STORYSIM_FEEDBACK_PER_10MIN", 10), 600)
 
 app = FastAPI(title="StorySim Web")
+
+# 静态资源(收款码等图片);assets 子目录单独挂载,不暴露 index.html
+app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+
+@app.middleware("http")
+async def _limit_body_size(request: Request, call_next):
+    # 据 Content-Length 提前挡掉超大请求体,避免 Pydantic 解析前就吃内存
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "请求体过大"})
+    return await call_next(request)
 
 
 class CharacterIn(BaseModel):
@@ -114,10 +140,27 @@ def _char_dicts(session: Session) -> list[dict]:
     ]
 
 
+def _client_ip(request: Request) -> str:
+    # 配了 --proxy-headers 后,Caddy 传来的 X-Forwarded-For 已反映到 request.client
+    return request.client.host if request.client else "?"
+
+
+def _evict_sessions() -> None:
+    """回收闲置会话,并在数量超限时淘汰最久未活动的,防内存被建会话刷爆。"""
+    now = time.monotonic()
+    for sid in [sid for sid, s in _sessions.items() if now - s.last_active > SESSION_TTL]:
+        _sessions.pop(sid, None)
+    if len(_sessions) >= MAX_SESSIONS:
+        ordered = sorted(_sessions.items(), key=lambda kv: kv[1].last_active)
+        for sid, _ in ordered[: len(_sessions) - MAX_SESSIONS + 1]:
+            _sessions.pop(sid, None)
+
+
 def _get(session_id: str) -> Session:
     s = _sessions.get(session_id)
     if s is None:
         raise HTTPException(status_code=404, detail="会话不存在,请重新创建故事")
+    s.last_active = time.monotonic()
     return s
 
 
@@ -149,12 +192,16 @@ def preset():
 
 
 @app.post("/api/story")
-def create_story(body: StoryIn):
+def create_story(body: StoryIn, request: Request):
+    if not _story_limiter.allow(_client_ip(request)):
+        raise HTTPException(status_code=429, detail="创建太频繁啦,歇一会儿再试~")
     _validate_story(body)
+    _evict_sessions()
     try:
         llm = _make_llm()
-    except Exception as exc:  # 缺 key 等
-        raise HTTPException(status_code=500, detail=f"LLM 初始化失败:{exc}")
+    except Exception:  # 缺 key 等;细节只进服务端日志,不回传客户端
+        logger.exception("LLM 初始化失败")
+        raise HTTPException(status_code=500, detail="服务暂时不可用,请稍后再试")
     characters = [
         Character(name=c.name, persona=c.persona, goal=c.goal, voice=c.voice)
         for c in body.characters
@@ -237,10 +284,11 @@ def play(session_id: str, request: Request):
                     on_event=on_event,
                     finale=finale,
                 )
-            except Exception as exc:  # LLM 超时 / 报错
+            except Exception:  # LLM 超时 / 报错;细节进日志,不回传客户端
+                logger.exception("回合生成失败")
                 if produced == 0:
                     session.stage.round = round_before  # 整回合空转,不消耗轮数
-                q.put(("error", str(exc)))
+                q.put(("error", "本回合生成失败,请稍后重试"))
             finally:
                 q.put((sentinel, None))
 
@@ -315,7 +363,9 @@ def delete_story(session_id: str):
 
 
 @app.post("/api/feedback")
-def feedback(body: FeedbackIn):
+def feedback(body: FeedbackIn, request: Request):
+    if not _feedback_limiter.allow(_client_ip(request)):
+        raise HTTPException(status_code=429, detail="提交太频繁啦,歇一会儿再试~")
     text = body.text.strip()[:MAX_FIELD]
     if not text:
         raise HTTPException(status_code=400, detail="反馈内容不能为空")

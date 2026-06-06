@@ -1,4 +1,4 @@
-from web.limits import Quota
+from web.limits import Quota, RateLimiter
 
 
 def test_blocks_after_per_ip_cap():
@@ -40,3 +40,24 @@ def test_blocked_request_does_not_consume():
     q.try_consume("1.1.1.1", "c", today="d")  # 被拦,不应再扣全局额度
     # 换个 IP 仍可玩(说明全局没被误扣到上限)
     assert q.try_consume("2.2.2.2", "c2", today="d") is None
+
+
+def test_rate_limiter_blocks_within_window():
+    rl = RateLimiter(max_calls=2, window_seconds=60)
+    assert rl.allow("ip", now=0) is True
+    assert rl.allow("ip", now=1) is True
+    assert rl.allow("ip", now=2) is False  # 第 3 次,窗口内超额
+
+
+def test_rate_limiter_recovers_after_window():
+    rl = RateLimiter(max_calls=1, window_seconds=10)
+    assert rl.allow("ip", now=0) is True
+    assert rl.allow("ip", now=5) is False
+    assert rl.allow("ip", now=11) is True  # 旧记录滑出窗口后恢复
+
+
+def test_rate_limiter_is_per_key():
+    rl = RateLimiter(max_calls=1, window_seconds=60)
+    assert rl.allow("a", now=0) is True
+    assert rl.allow("b", now=0) is True  # 不同 IP 各算各的
+    assert rl.allow("a", now=1) is False
