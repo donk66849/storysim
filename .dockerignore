@@ -1,0 +1,12 @@
+# 别把密钥 / 虚拟环境 / 历史 / 运行产物打进镜像
+.env
+.venv/
+.git/
+.idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+runs/
+web/runs/
+docs/
+tests/

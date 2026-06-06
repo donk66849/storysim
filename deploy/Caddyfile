@@ -2,6 +2,19 @@
 # 关键:flush_interval -1 关闭缓冲,SSE 才能逐条实时下发,否则回合会一次性闷出来。
 your-domain.com {
     encode gzip
+
+    # 挡超大请求体(后端也有兜底);够装满额角色设定即可
+    request_body {
+        max_size 64KB
+    }
+
+    # 基础安全响应头
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+
     reverse_proxy 127.0.0.1:8000 {
         flush_interval -1
     }

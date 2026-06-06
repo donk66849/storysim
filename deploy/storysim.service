@@ -9,10 +9,17 @@ After=network.target
 WorkingDirectory=/opt/storysim
 EnvironmentFile=/opt/storysim/.env
 # 单 worker:会话存在进程内存里,多 worker 会丢会话(配额计数也才准)
-ExecStart=/opt/storysim/.venv/bin/python -m uvicorn web.server:app --host 127.0.0.1 --port 8000
+# --proxy-headers + --forwarded-allow-ips 127.0.0.1:信任 Caddy 传来的 X-Forwarded-For,
+# 否则所有用户都被算成 127.0.0.1,每-IP 配额失效还会误锁全站。
+ExecStart=/opt/storysim/.venv/bin/python -m uvicorn web.server:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=always
 RestartSec=3
 User=www-data
+# 加固:禁提权、私有 /tmp、系统目录只读、隐藏 /home
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
