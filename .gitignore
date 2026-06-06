@@ -4,3 +4,6 @@ __pycache__/
 .pytest_cache/
 runs/*.md
 runs/*.jsonl
+web/runs/
+.idea/
+.venv/
