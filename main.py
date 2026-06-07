@@ -62,7 +62,10 @@ def main() -> None:
             play_round(stage, narrator, cfg.characters, llm, on_event=emit, finale=finale)
 
         console.print(
-            "\n[dim]导演指令:回车继续 / event: <文本> / tell <角色>: <文本> "
+            "\n[dim]导演指令:回车继续 / will: <走向>(钦定全局走向,留空=解除) "
+            "/ mandate <角色>: <目标>(钦定首要目标) / unmandate <角色>(解除) "
+            "/ event: <文本>(大转折,改世界设定) / beat: <文本>(小插曲,不改设定) "
+            "/ tell <角色>: <文本> / tell <角色> once: <文本>(仅本回合) "
             "/ set <角色> <字段>=<值> / exit <角色> / enter <角色> / save / quit[/dim]"
         )
         cmd = parse_command(console.input("[bold]导演> [/bold]"))

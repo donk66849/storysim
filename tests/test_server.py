@@ -98,6 +98,77 @@ def test_command_tell_appends_private_note():
     assert r.json()["events"] == []
 
 
+def test_command_beat_creates_event_without_changing_scene():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    r = client.post(
+        f"/api/story/{sid}/command", json={"kind": "beat", "value": "远处一声惨叫"}
+    )
+    assert r.json()["events"][0]["type"] == "world_event"
+    # 小插曲不冲掉常驻场景
+    assert client.get(f"/api/story/{sid}/state").json()["scene"] == "一个测试场景"
+
+
+def test_command_event_overwrites_scene():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    client.post(
+        f"/api/story/{sid}/command", json={"kind": "event", "value": "被传送到明朝"}
+    )
+    assert client.get(f"/api/story/{sid}/state").json()["scene"] == "被传送到明朝"
+
+
+def test_command_tell_once_routes_to_oneshot_and_is_consumed():
+    client = make_client(["旁白", "甲说", "乙说"] + ["x"] * 10)
+    sid = _create(client)
+    client.post(
+        f"/api/story/{sid}/command",
+        json={"kind": "tell", "target": "乙", "value": "突然翻脸", "once": True},
+    )
+    yi = server._sessions[sid].char_map["乙"]
+    # once 叮嘱进一次性槽,不进长期人设
+    assert yi.oneshot_notes == ["突然翻脸"]
+    assert yi.private_notes == []
+    read_sse(client, sid)  # 演一回合
+    assert yi.oneshot_notes == []  # 演完即清空
+
+
+def test_command_will_then_state_returns_it():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    client.post(
+        f"/api/story/{sid}/command", json={"kind": "will", "value": "全员卷入夺嫡"}
+    )
+    assert client.get(f"/api/story/{sid}/state").json()["director_will"] == "全员卷入夺嫡"
+
+
+def test_command_mandate_sets_directive_in_state():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    client.post(
+        f"/api/story/{sid}/command",
+        json={"kind": "mandate", "target": "甲", "value": "当上一品大臣"},
+    )
+    chars = client.get(f"/api/story/{sid}/state").json()["characters"]
+    jia = next(c for c in chars if c["name"] == "甲")
+    assert jia["directive"] == "当上一品大臣"
+
+
+def test_command_unmandate_clears_directive():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    client.post(
+        f"/api/story/{sid}/command",
+        json={"kind": "mandate", "target": "甲", "value": "当上一品大臣"},
+    )
+    client.post(
+        f"/api/story/{sid}/command", json={"kind": "unmandate", "target": "甲"}
+    )
+    chars = client.get(f"/api/story/{sid}/state").json()["characters"]
+    jia = next(c for c in chars if c["name"] == "甲")
+    assert jia["directive"] == ""
+
+
 def test_settings_patch():
     client = make_client(["x"] * 10)
     sid = _create(client)

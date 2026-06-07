@@ -106,6 +106,7 @@ class CommandIn(BaseModel):
     target: str | None = None
     field: str | None = None
     value: str | None = None
+    once: bool = False
 
 
 class SettingsIn(BaseModel):
@@ -135,7 +136,10 @@ def _validate_story(body: "StoryIn") -> None:
 
 def _char_dicts(session: Session) -> list[dict]:
     return [
-        {"name": c.name, "persona": c.persona, "goal": c.goal, "voice": c.voice}
+        {
+            "name": c.name, "persona": c.persona, "goal": c.goal,
+            "voice": c.voice, "directive": c.directive,
+        }
         for c in session.characters
     ]
 
@@ -313,7 +317,8 @@ def play(session_id: str, request: Request):
 def command(session_id: str, body: CommandIn):
     session = _get(session_id)
     cmd = DirectorCommand(
-        kind=body.kind, target=body.target, field=body.field, value=body.value
+        kind=body.kind, target=body.target, field=body.field,
+        value=body.value, once=body.once,
     )
     status, events = apply_command(cmd, session.stage, session.char_map)
     for e in events:
@@ -337,6 +342,7 @@ def state(session_id: str):
     return {
         "title": session.title,
         "scene": session.stage.scene,
+        "director_will": session.stage.director_will,
         "characters": _char_dicts(session),
         "round": session.stage.round,
         "max_rounds": session.max_rounds,

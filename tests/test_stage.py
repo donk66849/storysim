@@ -19,6 +19,27 @@ def test_stage_starts_at_round_zero_with_scene():
     assert stage.events == []
 
 
+def test_new_stage_has_empty_director_will():
+    assert Stage("场景").director_will == ""
+
+
+def test_set_will_sets_and_strips_and_clears():
+    stage = Stage("场景")
+    stage.set_will("  全员卷入夺嫡  ")
+    assert stage.director_will == "全员卷入夺嫡"
+    stage.set_will("")
+    assert stage.director_will == ""
+
+
+def test_director_will_does_not_enter_transcript():
+    stage = Stage("场景")
+    stage.start_round()
+    stage.set_will("林探长青云直上")
+    # 旨意是常驻字段,不进 events / transcript
+    assert stage.events == []
+    assert "林探长青云直上" not in stage.transcript()
+
+
 def test_start_round_increments_and_returns():
     stage = Stage("场景")
     assert stage.start_round() == 1

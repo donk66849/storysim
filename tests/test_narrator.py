@@ -25,6 +25,34 @@ def test_narrate_prompt_includes_scene_and_history():
     assert "林探长:门被锁死了" in user
 
 
+def test_narrate_user_includes_director_will():
+    stage = Stage("汴京街头")
+    stage.start_round()
+    stage.set_will("林探长青云直上,最终位极人臣")
+    llm = FakeLLM(["晨雾里酒旗招展。"])
+    Narrator().narrate(stage, llm)
+    user = llm.calls[0][-1]["content"]
+    assert "林探长青云直上,最终位极人臣" in user
+
+
+def test_narrate_omits_will_line_when_empty():
+    stage = Stage("汴京街头")
+    stage.start_round()
+    llm = FakeLLM(["晨雾里酒旗招展。"])
+    Narrator().narrate(stage, llm)
+    assert "导演当前走向" not in llm.calls[0][-1]["content"]
+
+
+def test_narrate_system_dramatizes_recent_world_event():
+    stage = Stage("古宅")
+    stage.start_round()
+    llm = FakeLLM(["余烬未熄。"])
+    Narrator().narrate(stage, llm)
+    system = llm.calls[0][0]["content"]
+    # 旁白被要求顺着刚发生的世界事件渲染余波,而非另起炉灶
+    assert "余波" in system
+
+
 def test_finale_narrate_uses_finale_framing():
     stage = Stage("古宅")
     stage.start_round()

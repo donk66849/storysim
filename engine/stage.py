@@ -21,6 +21,11 @@ class Stage:
         self.scene = scene
         self.events: list[Event] = []
         self.round = 0
+        self.director_will = ""  # 导演常驻旨意/走向:抗 k 截断、不进 events,每回合下发给旁白与所有角色
+
+    def set_will(self, text: str) -> None:
+        """覆盖式更新导演走向;空串=清空(不像 private_notes 那样越堆越稀释)。"""
+        self.director_will = (text or "").strip()
 
     def start_round(self) -> int:
         self.round += 1

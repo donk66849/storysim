@@ -47,6 +47,7 @@
   textarea { resize: vertical; }
   label { display: block; font-size: 13px; color: var(--dim); margin: 14px 0 5px; }
 
+  button, a { touch-action: manipulation; }  /* 移动端去掉 300ms 点击延迟与双击缩放误判 */
   button {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
     border-radius: 8px; min-height: 40px; padding: 9px 16px; font-size: 14px; cursor: pointer;
@@ -142,7 +143,9 @@
     .row > * { flex-basis: 100%; }
     .spacer { flex: 0 0 auto; }
     button { min-height: 44px; }
-    .topbar { flex-wrap: wrap; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; gap: 8px 10px; }
+    .topbar { flex-wrap: wrap; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; gap: 8px 10px;
+      backdrop-filter: none; }  /* 微信内置/低端安卓上 blur 容易掉帧 */
+    .feed .wrap > * { animation: none; }  /* 剧情越多动画越吃力,移动端直接关掉 */
     .topbar .t-title { flex: 1 1 calc(100% - 116px); font-size: 16px; }
     .topbar .round { margin-left: auto; font-size: 13px; }
     .topbar .grow { display: none; }
@@ -249,10 +252,10 @@
       </div>
       <div>
         <label>上下文窗口 (k,留空=全部历史)</label>
-        <input id="w-k" type="number" min="1" placeholder="全部">
+        <input id="w-k" type="number" min="1" placeholder="全部" value="8">
       </div>
     </div>
-    <p class="muted" style="margin-top:8px">k 越小,每回合喂给模型的最近事件越少,更省 token 但记忆更短。</p>
+    <p class="muted" style="margin-top:8px">k 越小,每回合喂给模型的最近事件越少,生成更快、更省 token,但记忆更短(默认 8;留空=全部历史)。</p>
   </div>
 
   <div class="row" style="margin-top:22px">
@@ -279,9 +282,27 @@
   <div id="director" class="hidden">
     <div class="wrap">
       <div class="grid">
+        <div class="block full">
+          <p class="sec-title">钦定走向 / 角色目标(导演主宰,常驻每回合)</p>
+          <textarea id="d-will" rows="2" placeholder="全局走向,例如:整部戏走向林探长青云直上、最终位极人臣(留空并点钦定=解除)"></textarea>
+          <div style="margin-top:8px"><button id="d-will-btn">钦定走向</button></div>
+          <div class="row" style="margin-top:10px; align-items:center">
+            <select id="d-mandate-who"></select>
+            <input id="d-mandate-val" class="spacer" placeholder="钦定该角色首要目标,例如:当上一品大臣">
+          </div>
+          <div style="margin-top:8px">
+            <button id="d-mandate-btn">钦定目标</button>
+            <button id="d-unmandate-btn" class="ghost">解除钦定</button>
+          </div>
+          <p class="muted" style="margin-top:8px">钦定的走向与角色目标常驻、抗截断、旁白与所有角色每回合都收到,世界剧变也不冲淡;长线目标用这里,别用「仅本回合」叮嘱。</p>
+        </div>
         <div class="block">
           <p class="sec-title">注入世界事件</p>
-          <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了 / 老周突然倒地身亡"></textarea>
+          <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了 / 所有人被传送到明朝京城"></textarea>
+          <label class="muted" style="display:flex; align-items:center; gap:6px; margin-top:8px">
+            <input type="checkbox" id="d-event-big" checked>
+            改写故事背景(大转折);取消勾选则只是小插曲,不动世界设定
+          </label>
           <div class="row" style="margin-top:8px; align-items:center">
             <button id="d-event-btn" class="spacer">注入</button>
             <select id="d-event-exit"></select>
@@ -291,6 +312,10 @@
           <p class="sec-title">私下叮嘱角色</p>
           <select id="d-tell-who"></select>
           <textarea id="d-tell" rows="2" style="margin-top:8px" placeholder="只进该角色私有记忆,例如:你藏着一把钥匙"></textarea>
+          <label class="muted" style="display:flex; align-items:center; gap:6px; margin-top:8px">
+            <input type="checkbox" id="d-tell-once">
+            仅本回合(一次性指令,演完即止,如「这回合突然崩溃大哭」)
+          </label>
           <div style="margin-top:8px"><button id="d-tell-btn">叮嘱</button></div>
         </div>
         <div class="block full">
@@ -517,7 +542,7 @@ function enterTheater(s) {
 }
 
 function fillCharSelects() {
-  for (const sel of [$("d-tell-who"), $("d-set-who"), $("d-exit-who")]) {
+  for (const sel of [$("d-tell-who"), $("d-set-who"), $("d-exit-who"), $("d-mandate-who")]) {
     sel.innerHTML = "";
     for (const c of state.chars) {
       const o = document.createElement("option");
@@ -549,7 +574,17 @@ function updateRound() {
 }
 
 function feedEl() { return $("feed-inner"); }
-function scrollFeed() { const f = $("feed"); f.scrollTop = f.scrollHeight; }
+let _scrollQueued = false;
+function scrollFeed() {
+  // 一回合会连插多条事件;用 rAF 合并成每帧一次读写,避免反复触发布局抖动
+  if (_scrollQueued) return;
+  _scrollQueued = true;
+  requestAnimationFrame(() => {
+    _scrollQueued = false;
+    const f = $("feed");
+    f.scrollTop = f.scrollHeight;
+  });
+}
 
 function roundSep(n) {
   const d = document.createElement("div");
@@ -679,7 +714,8 @@ async function command(payload, okMsg) {
 $("d-event-btn").onclick = async () => {
   const v = $("d-event").value.trim();
   if (!v) return toast("请填写世界事件", "err");
-  if (!(await command({ kind: "event", value: v }))) return;
+  const kind = $("d-event-big").checked ? "event" : "beat";
+  if (!(await command({ kind, value: v }))) return;
   $("d-event").value = "";
   const who = $("d-event-exit").value;
   if (who) {
@@ -691,7 +727,11 @@ $("d-event-btn").onclick = async () => {
 $("d-tell-btn").onclick = async () => {
   const v = $("d-tell").value.trim();
   if (!v) return toast("请填写叮嘱内容", "err");
-  if (await command({ kind: "tell", target: $("d-tell-who").value, value: v })) $("d-tell").value = "";
+  const once = $("d-tell-once").checked;
+  if (await command({ kind: "tell", target: $("d-tell-who").value, value: v, once })) {
+    $("d-tell").value = "";
+    $("d-tell-once").checked = false;
+  }
 };
 
 $("d-set-btn").onclick = async () => {
@@ -703,6 +743,31 @@ $("d-set-btn").onclick = async () => {
     $("d-set-val").value = "";
     const c = state.chars.find((x) => x.name === who);
     if (c) c[field] = v;
+  }
+};
+
+$("d-will-btn").onclick = async () => {
+  // 留空=解除走向
+  const v = $("d-will").value.trim();
+  await command({ kind: "will", value: v }, v ? "已钦定走向" : "已解除走向");
+};
+
+$("d-mandate-btn").onclick = async () => {
+  const v = $("d-mandate-val").value.trim();
+  if (!v) return toast("请填写钦定的首要目标", "err");
+  const who = $("d-mandate-who").value;
+  if (await command({ kind: "mandate", target: who, value: v })) {
+    $("d-mandate-val").value = "";
+    const c = state.chars.find((x) => x.name === who);
+    if (c) c.directive = v;
+  }
+};
+
+$("d-unmandate-btn").onclick = async () => {
+  const who = $("d-mandate-who").value;
+  if (await command({ kind: "unmandate", target: who }, "已解除钦定")) {
+    const c = state.chars.find((x) => x.name === who);
+    if (c) c.directive = "";
   }
 };
 
