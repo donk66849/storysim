@@ -22,12 +22,28 @@ _EPILOGUE_SYSTEM = (
 
 
 class Narrator:
+    def _cast_line(self, cast_names: list[str] | None) -> str:
+        if not cast_names:
+            return ""
+        names = "、".join(cast_names)
+        return (
+            f"当前登场角色:{names}\n"
+            "严格以这份名单为准;若场景设定里的人数或称谓与名单冲突,以名单为准,"
+            "不要凭空添加名单外的第三人或其他主角。\n\n"
+        )
+
     def narrate(
-        self, stage: Stage, llm: LLMClient, k: int | None = None, finale: bool = False
+        self,
+        stage: Stage,
+        llm: LLMClient,
+        k: int | None = None,
+        finale: bool = False,
+        cast_names: list[str] | None = None,
     ) -> Event:
         will_line = f"导演当前走向:{stage.director_will}\n\n" if stage.director_will else ""
         user = (
             f"场景设定:{stage.scene}\n\n"
+            f"{self._cast_line(cast_names)}"
             f"{will_line}"
             f"已发生的剧情:\n{stage.transcript(k)}\n\n"
             f"请描写本回合的开场氛围。"
@@ -39,11 +55,18 @@ class Narrator:
         content = llm.complete(messages).strip()
         return stage.add("narration", "旁白", content)
 
-    def epilogue(self, stage: Stage, llm: LLMClient, k: int | None = None) -> Event:
+    def epilogue(
+        self,
+        stage: Stage,
+        llm: LLMClient,
+        k: int | None = None,
+        cast_names: list[str] | None = None,
+    ) -> Event:
         """最终回合所有角色行动后,补一条收束全局的大结局旁白。"""
         will_line = f"导演当前走向:{stage.director_will}\n\n" if stage.director_will else ""
         user = (
             f"场景设定:{stage.scene}\n\n"
+            f"{self._cast_line(cast_names)}"
             f"{will_line}"
             f"已发生的剧情:\n{stage.transcript(k)}\n\n"
             f"请写下这个故事的大结局。"

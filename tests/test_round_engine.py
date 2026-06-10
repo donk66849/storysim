@@ -60,6 +60,29 @@ def test_inactive_character_does_not_act():
     ]
 
 
+def test_play_round_passes_active_cast_to_narrator_and_characters():
+    stage = Stage("三个陌生人被暴雨困在古宅里")
+    a, b = make_chars()
+    llm = FakeLLM(["旁白词", "甲的台词", "乙的台词"])
+    play_round(stage, Narrator(), [a, b], llm)
+    for call in llm.calls:
+        user = call[-1]["content"]
+        assert "当前登场角色:甲、乙" in user
+        assert "以名单为准" in user
+
+
+def test_play_round_cast_excludes_inactive_character():
+    stage = Stage("三个陌生人被暴雨困在古宅里")
+    a, b = make_chars()
+    b.active = False
+    llm = FakeLLM(["旁白词", "甲的台词"])
+    play_round(stage, Narrator(), [a, b], llm)
+    for call in llm.calls:
+        user = call[-1]["content"]
+        assert "当前登场角色:甲" in user
+        assert "乙" not in user
+
+
 def test_finale_round_appends_closing_epilogue():
     stage = Stage("场景")
     chars = make_chars()

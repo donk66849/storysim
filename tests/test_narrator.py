@@ -25,6 +25,17 @@ def test_narrate_prompt_includes_scene_and_history():
     assert "林探长:门被锁死了" in user
 
 
+def test_narrate_prompt_includes_cast_override_for_conflicting_scene_count():
+    stage = Stage("三个陌生人被暴雨困在古宅里")
+    stage.start_round()
+    llm = FakeLLM(["雨声盖过了两人的呼吸。"])
+    Narrator().narrate(stage, llm, cast_names=["林探长", "苏小姐"])
+    user = llm.calls[0][-1]["content"]
+    assert "当前登场角色:林探长、苏小姐" in user
+    assert "以名单为准" in user
+    assert "不要凭空添加名单外的第三人" in user
+
+
 def test_narrate_user_includes_director_will():
     stage = Stage("汴京街头")
     stage.start_round()

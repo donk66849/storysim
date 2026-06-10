@@ -49,9 +49,26 @@ class Character:
             parts.extend(f"- {note}" for note in notes)
         return "\n".join(parts)
 
-    def _user_prompt(self, stage: Stage, k: int | None, finale: bool = False) -> str:
+    def _cast_line(self, cast_names: list[str] | None) -> str:
+        if not cast_names:
+            return ""
+        names = "、".join(cast_names)
+        return (
+            f"当前登场角色:{names}\n"
+            "严格以这份名单为准;若场景设定里的人数或称谓与名单冲突,以名单为准。"
+            "不要虚构名单外的第三人,也不要替名单外角色说话或行动。\n\n"
+        )
+
+    def _user_prompt(
+        self,
+        stage: Stage,
+        k: int | None,
+        finale: bool = False,
+        cast_names: list[str] | None = None,
+    ) -> str:
         prompt = (
             f"当前场景:{stage.scene}\n\n"
+            f"{self._cast_line(cast_names)}"
             f"已发生的剧情:\n{stage.transcript(k)}\n\n"
             f"（轮到你了，以「{self.name}」的身份行动。要求:\n"
             f"1. 平时只用 1-2 句,像剧本台词一样简短,不要写大段旁白式的环境/动作描写;"
@@ -81,11 +98,16 @@ class Character:
         return prompt + "）"
 
     def act(
-        self, stage: Stage, llm: LLMClient, k: int | None = None, finale: bool = False
+        self,
+        stage: Stage,
+        llm: LLMClient,
+        k: int | None = None,
+        finale: bool = False,
+        cast_names: list[str] | None = None,
     ) -> Event:
         messages = [
             {"role": "system", "content": self.system_prompt(stage.director_will)},
-            {"role": "user", "content": self._user_prompt(stage, k, finale)},
+            {"role": "user", "content": self._user_prompt(stage, k, finale, cast_names)},
         ]
         content = llm.complete(messages).strip()
         event = stage.add("speech", self.name, content)

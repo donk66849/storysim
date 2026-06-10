@@ -194,3 +194,15 @@ def test_act_messages_carry_scene_and_recent_transcript():
     user = messages[-1]["content"]
     assert "古宅大厅" in user
     assert "苏小姐:我先到的" in user
+
+
+def test_act_user_prompt_includes_cast_override_for_conflicting_scene_count():
+    stage = Stage("三个陌生人被暴雨困在古宅里")
+    stage.start_round()
+    ch = make_char()
+    llm = FakeLLM(["这里只有我们两个。"])
+    ch.act(stage, llm, cast_names=["林探长", "苏小姐"])
+    user = llm.calls[0][-1]["content"]
+    assert "当前登场角色:林探长、苏小姐" in user
+    assert "以名单为准" in user
+    assert "不要虚构名单外的第三人" in user

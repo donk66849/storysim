@@ -43,6 +43,10 @@
     border: 1px solid var(--border); border-radius: 8px;
     min-height: 42px; padding: 9px 11px; font-size: 16px; font-family: inherit;
   }
+  input[type="checkbox"] {
+    width: 18px; height: 18px; min-height: 0; padding: 0; flex: 0 0 auto;
+    accent-color: var(--amber); cursor: pointer;
+  }
   input:focus, textarea:focus, select:focus { outline: none; border-color: var(--amber); }
   textarea { resize: vertical; }
   label { display: block; font-size: 13px; color: var(--dim); margin: 14px 0 5px; }
@@ -121,20 +125,60 @@
 
   /* ---------- 导演面板 ---------- */
   #director {
-    flex: 0 0 auto; border-top: 1px solid var(--border); background: var(--panel-2);
-    max-height: 50vh; max-height: 50dvh; overflow-y: auto; padding: 6px 0 18px;
+    position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(0,0,0,.56); padding: 0 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  #director .director-sheet {
+    width: min(820px, 100%); max-height: calc(100dvh - 72px - env(safe-area-inset-top));
+    background: var(--panel-2); border: 1px solid var(--border); border-bottom: none;
+    border-radius: 16px 16px 0 0; box-shadow: 0 -20px 60px rgba(0,0,0,.45);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #director .director-head {
+    flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+    padding: 18px 14px 10px; border-bottom: 1px solid var(--border); position: relative;
+  }
+  #director .director-head::before {
+    content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 42px; height: 4px; border-radius: 99px; background: #514958;
+  }
+  #director .director-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px;
     -webkit-overflow-scrolling: touch;
   }
-  #director .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  #director .block { background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px; }
+  #director .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #director .block {
+    min-width: 0; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+  }
   #director .block.full { grid-column: 1 / -1; }
+  #director .compact-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #director .compact-row > * { min-width: 0; }
+  #director .compact-row select, #director .compact-row input { flex: 1 1 180px; }
+  #director .compact-row button { flex: 0 0 auto; }
+  #director .hint { margin: 7px 0 0; font-size: 13px; line-height: 1.55; }
+  .director-advanced {
+    margin-top: 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: rgba(14,12,16,.4); overflow: hidden;
+  }
+  .director-advanced summary {
+    cursor: pointer; list-style: none; padding: 12px 14px; color: var(--amber);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .director-advanced summary::-webkit-details-marker { display: none; }
+  .director-advanced summary::after { content: "⌄"; color: var(--dim); transition: transform .15s; }
+  .director-advanced[open] summary::after { transform: rotate(180deg); }
+  .director-advanced .grid { padding: 0 12px 12px; }
   @media (max-width: 680px) { #director .grid { grid-template-columns: 1fr; } }
 
-  /* ---------- 手机窄屏 ---------- */
-  .director-actions { margin-top: 14px; display: flex; align-items: center; gap: 12px; }
+  .director-actions {
+    flex: 0 0 auto; margin: 0; padding: 12px 14px; border-top: 1px solid var(--border);
+    background: rgba(23,20,27,.96); display: flex; align-items: center; gap: 10px;
+    position: sticky; bottom: 0;
+  }
   .director-actions .spacer-line { flex: 1; }
 
+  /* ---------- 手机窄屏 ---------- */
   @media (max-width: 560px) {
     .wrap { padding: 0 14px; }
     h1.title { font-size: 24px; }
@@ -158,10 +202,21 @@
     .bottombar button { flex: 1 1 calc(33.333% - 6px); min-width: 0; padding: 8px 10px; font-size: 13px; }
     .bottombar #t-next { flex-basis: 100%; order: -1; font-size: 14px; }
     .feed { padding: 18px 0 10px; }
-    #director { max-height: 58vh; max-height: 58dvh; padding-bottom: 14px; }
+    #director { padding: 0; }
+    #director .director-sheet {
+      width: 100%; max-height: calc(100dvh - 72px - env(safe-area-inset-top));
+      border-left: none; border-right: none; border-radius: 14px 14px 0 0;
+    }
+    #director .director-head { padding: 18px 14px 9px; }
+    #director .director-body { padding: 12px 14px; overflow-x: hidden; }
     #director .grid { gap: 10px; }
-    #director .block { border-radius: 8px; padding: 12px; }
-    .director-actions { align-items: stretch; flex-direction: column; }
+    #director .block { padding: 12px; }
+    #director .compact-row { align-items: stretch; }
+    #director .compact-row select, #director .compact-row input, #director .compact-row button {
+      flex: 1 1 100%; width: 100%;
+    }
+    .director-advanced .grid { padding: 0 10px 10px; }
+    .director-actions { align-items: stretch; flex-direction: column; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
     .director-actions .muted { font-size: 13px; }
     .director-actions .spacer-line { display: none; }
     .director-actions button { width: 100%; }
@@ -279,71 +334,102 @@
     <div class="wrap" id="feed-inner"></div>
   </div>
 
-  <div id="director" class="hidden">
-    <div class="wrap">
-      <div class="grid">
-        <div class="block full">
-          <p class="sec-title">钦定走向 / 角色目标(导演主宰,常驻每回合)</p>
-          <textarea id="d-will" rows="2" placeholder="全局走向,例如:整部戏走向林探长青云直上、最终位极人臣(留空并点钦定=解除)"></textarea>
-          <div style="margin-top:8px"><button id="d-will-btn">钦定走向</button></div>
-          <div class="row" style="margin-top:10px; align-items:center">
-            <select id="d-mandate-who"></select>
-            <input id="d-mandate-val" class="spacer" placeholder="钦定该角色首要目标,例如:当上一品大臣">
-          </div>
-          <div style="margin-top:8px">
-            <button id="d-mandate-btn">钦定目标</button>
-            <button id="d-unmandate-btn" class="ghost">解除钦定</button>
-          </div>
-          <p class="muted" style="margin-top:8px">钦定的走向与角色目标常驻、抗截断、旁白与所有角色每回合都收到,世界剧变也不冲淡;长线目标用这里,别用「仅本回合」叮嘱。</p>
+  <div id="director" class="hidden" aria-hidden="true">
+    <div class="director-sheet" role="dialog" aria-modal="true" aria-labelledby="director-title">
+      <div class="director-head">
+        <div>
+          <p class="sec-title" id="director-title">导演干预</p>
+          <span class="muted">常用操作在这里;更多控制收在高级里。</span>
         </div>
-        <div class="block">
-          <p class="sec-title">注入世界事件</p>
-          <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了 / 所有人被传送到明朝京城"></textarea>
-          <label class="muted" style="display:flex; align-items:center; gap:6px; margin-top:8px">
-            <input type="checkbox" id="d-event-big" checked>
-            改写故事背景(大转折);取消勾选则只是小插曲,不动世界设定
-          </label>
-          <div class="row" style="margin-top:8px; align-items:center">
-            <button id="d-event-btn" class="spacer">注入</button>
-            <select id="d-event-exit"></select>
-          </div>
-        </div>
-        <div class="block">
-          <p class="sec-title">私下叮嘱角色</p>
-          <select id="d-tell-who"></select>
-          <textarea id="d-tell" rows="2" style="margin-top:8px" placeholder="只进该角色私有记忆,例如:你藏着一把钥匙"></textarea>
-          <label class="muted" style="display:flex; align-items:center; gap:6px; margin-top:8px">
-            <input type="checkbox" id="d-tell-once">
-            仅本回合(一次性指令,演完即止,如「这回合突然崩溃大哭」)
-          </label>
-          <div style="margin-top:8px"><button id="d-tell-btn">叮嘱</button></div>
-        </div>
-        <div class="block full">
-          <p class="sec-title">修改角色设定</p>
-          <div class="row">
-            <select id="d-set-who"></select>
-            <select id="d-set-field">
-              <option value="goal">目标 goal</option>
-              <option value="persona">人设 persona</option>
-              <option value="voice">说话风格 voice</option>
-            </select>
-          </div>
-          <input id="d-set-val" style="margin-top:8px" placeholder="新的值,例如:隐瞒真相">
-          <div style="margin-top:8px"><button id="d-set-btn">修改</button></div>
-        </div>
-        <div class="block full">
-          <p class="sec-title">角色登场 / 退场</p>
-          <div class="row" style="align-items:center">
-            <select id="d-exit-who"></select>
-            <button id="d-exit-btn" class="spacer">退场</button>
-            <button id="d-enter-btn" class="spacer">重新登场</button>
-          </div>
-          <p class="muted" style="margin-top:8px">退场的角色(死亡/离开)在后续回合不再说话。</p>
-        </div>
+        <button class="ghost icon-btn" id="d-close" type="button">关闭</button>
       </div>
+
+      <div class="director-body">
+        <div class="grid">
+          <div class="block full">
+            <p class="sec-title">钦定走向</p>
+            <textarea id="d-will" rows="2" placeholder="整部戏接下来要走向哪里? 留空再点按钮=解除"></textarea>
+            <div class="compact-row" style="margin-top:8px">
+              <button id="d-will-btn">钦定走向</button>
+            </div>
+            <p class="muted hint">常驻每回合,适合长线方向。</p>
+          </div>
+
+          <div class="block">
+            <p class="sec-title">注入事件</p>
+            <textarea id="d-event" rows="2" placeholder="例如:灯突然全灭了"></textarea>
+            <label class="muted" style="display:flex; align-items:center; gap:6px; margin-top:8px">
+              <input type="checkbox" id="d-event-big" checked>
+              改写背景
+            </label>
+            <div class="compact-row" style="margin-top:8px">
+              <button id="d-event-btn">注入</button>
+              <select id="d-event-exit"></select>
+            </div>
+          </div>
+
+          <div class="block">
+            <p class="sec-title">私聊角色</p>
+            <select id="d-tell-who"></select>
+            <textarea id="d-tell" rows="2" style="margin-top:8px" placeholder="例如:你藏着一把钥匙"></textarea>
+            <label class="muted" style="display:flex; align-items:center; gap:6px; margin-top:8px">
+              <input type="checkbox" id="d-tell-once">
+              仅本回合
+            </label>
+            <div class="compact-row" style="margin-top:8px">
+              <button id="d-tell-btn">叮嘱</button>
+            </div>
+          </div>
+        </div>
+
+        <details class="director-advanced">
+          <summary>高级控制</summary>
+          <div class="grid">
+            <div class="block full">
+              <p class="sec-title">角色目标钦定</p>
+              <div class="compact-row">
+                <select id="d-mandate-who"></select>
+                <input id="d-mandate-val" placeholder="导演强制目标,会压过原目标,例如:必须保护苏小姐">
+              </div>
+              <div class="compact-row" style="margin-top:8px">
+                <button id="d-mandate-btn">钦定目标</button>
+                <button id="d-unmandate-btn" class="ghost">解除钦定</button>
+              </div>
+            </div>
+
+            <div class="block full">
+              <p class="sec-title">修改角色设定</p>
+              <div class="compact-row">
+                <select id="d-set-who"></select>
+                <select id="d-set-field">
+                  <option value="goal">目标 goal</option>
+                  <option value="persona">人设 persona</option>
+                  <option value="voice">说话风格 voice</option>
+                </select>
+              </div>
+              <input id="d-set-val" style="margin-top:8px" placeholder="改角色资料里的普通设定,例如:其实是古宅继承人">
+              <div class="compact-row" style="margin-top:8px">
+                <button id="d-set-btn">修改</button>
+              </div>
+            </div>
+
+            <div class="block full">
+              <p class="sec-title">登场 / 退场</p>
+              <div class="compact-row">
+                <select id="d-exit-who"></select>
+                <button id="d-exit-btn">退场</button>
+                <button id="d-enter-btn" class="ghost">重新登场</button>
+              </div>
+              <p class="muted hint" id="d-active-hint">退场后,该角色后续回合不再说话。</p>
+            </div>
+          </div>
+        </details>
+      </div>
+
       <div class="director-actions">
-        <span class="muted">可连续做多个干预,完成后点右侧一键继续。</span>
+        <span class="muted">可连续干预,完成后继续。</span>
         <span class="spacer-line"></span>
+        <button class="ghost" id="d-cancel" type="button">关闭</button>
         <button class="primary" id="d-apply-next">应用并继续 ▶</button>
       </div>
     </div>
@@ -351,7 +437,7 @@
 
   <div class="bottombar">
     <button class="ghost" id="t-director-toggle">✎ 导演</button>
-    <button class="ghost" id="t-save">💾 存档</button>
+    <button class="ghost" id="t-save">⏹ 结束</button>
     <button class="ghost" id="t-feedback">💡 提建议</button>
     <span class="grow"></span>
     <button class="primary" id="t-next">▶ 继续下一回合</button>
@@ -390,6 +476,7 @@
       </span>
     </button>
 
+    <!--
     <button class="support-item" id="sup-pay" type="button">
       <span class="support-ic"><svg viewBox="0 0 576 512" aria-hidden="true"><path d="M275.3 250.5c7 7.4 18.4 7.4 25.5 0l108.9-114.2c31.6-33.2 29.8-88.2-5.6-118.8-30.8-26.7-76.7-21.9-104.9 7.7L288 39.7l-11.1-11.6C248.7 1.5 202.8-3.4 172 23.3c-35.4 30.6-37.2 85.6-5.6 118.8l108.9 108.4zM573.6 309.3l-1.5-1.4c-13.6-12.2-34.6-11.5-47.4 1.5L427.1 408c-6.4 6.4-15 9.9-24.1 9.9H272c-8.8 0-16-7.2-16-16s7.2-16 16-16h83.7c15.2 0 28.9-11 31.2-26 2.8-18.3-11.7-34-29.5-34H192c-22.3 0-43.9 7.7-61.2 21.8l-46.5 37.9H16c-8.8 0-16 7.2-16 16v96c0 8.8 7.2 16 16 16h280.4c14.5 0 28.6-4.9 40-14L569.5 358c14.7-11.7 16.9-33.3 4.1-48.7z"/></svg></span>
       <span class="support-body">
@@ -398,6 +485,7 @@
         <img id="sup-pay-qr" class="hidden" src="/assets/wechat-pay.png" alt="微信收款码" loading="lazy">
       </span>
     </button>
+    -->
 
     <a class="support-item" id="sup-gh" href="https://github.com/donk66849/storysim" target="_blank" rel="noopener">
       <span class="support-ic"><svg viewBox="0 0 496 512" aria-hidden="true"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8z"/></svg></span>
@@ -541,18 +629,28 @@ function enterTheater(s) {
   if (state.round === 0 && state.round < state.maxRounds) nextRound();
 }
 
+function charLabel(c) {
+  return c.active === false ? `${c.name}（退场）` : c.name;
+}
+
 function fillCharSelects() {
+  const keep = {};
+  for (const id of ["d-tell-who", "d-set-who", "d-exit-who", "d-mandate-who"]) {
+    keep[id] = $(id).value;
+  }
   for (const sel of [$("d-tell-who"), $("d-set-who"), $("d-exit-who"), $("d-mandate-who")]) {
     sel.innerHTML = "";
     for (const c of state.chars) {
       const o = document.createElement("option");
       o.value = c.name;
-      o.textContent = c.name;
+      o.textContent = charLabel(c);
       sel.appendChild(o);
     }
+    if (keep[sel.id] && state.chars.some((c) => c.name === keep[sel.id])) sel.value = keep[sel.id];
   }
   // 世界事件块的"顺便让谁退场"选择器:首项为不退场
   const es = $("d-event-exit");
+  const keepExit = es.value;
   es.innerHTML = "";
   const none = document.createElement("option");
   none.value = "";
@@ -561,9 +659,23 @@ function fillCharSelects() {
   for (const c of state.chars) {
     const o = document.createElement("option");
     o.value = c.name;
-    o.textContent = `并让「${c.name}」退场`;
+    o.textContent = c.active === false ? `「${c.name}」已退场` : `并让「${c.name}」退场`;
+    o.disabled = c.active === false;
     es.appendChild(o);
   }
+  if (keepExit && state.chars.some((c) => c.name === keepExit && c.active !== false)) es.value = keepExit;
+  updateDirectorActiveControls();
+}
+
+function updateDirectorActiveControls() {
+  const who = $("d-exit-who").value;
+  const c = state.chars.find((x) => x.name === who);
+  const inactive = c && c.active === false;
+  $("d-exit-btn").disabled = !!inactive;
+  $("d-enter-btn").disabled = !inactive;
+  $("d-active-hint").textContent = inactive
+    ? `「${who}」已退场,可重新登场。`
+    : `「${who || "角色"}」在场,退场后后续回合不再说话。`;
 }
 
 function updateRound() {
@@ -691,11 +803,29 @@ function showEnding() {
 $("t-next").onclick = nextRound;
 
 /* ---------- 导演面板 ---------- */
-$("t-director-toggle").onclick = () => $("director").classList.toggle("hidden");
+function openDirector() {
+  $("director").classList.remove("hidden");
+  $("director").setAttribute("aria-hidden", "false");
+  updateDirectorActiveControls();
+}
+
+function closeDirector() {
+  $("director").classList.add("hidden");
+  $("director").setAttribute("aria-hidden", "true");
+}
+
+$("t-director-toggle").onclick = () =>
+  $("director").classList.contains("hidden") ? openDirector() : closeDirector();
+$("d-close").onclick = closeDirector;
+$("d-cancel").onclick = closeDirector;
+$("director").onclick = (e) => {
+  if (e.target === $("director")) closeDirector();
+};
+$("d-exit-who").onchange = updateDirectorActiveControls;
 
 // 导演干预完成后:收起面板并自动进入下一回合(未到总轮数才推进)
 function closeDirectorAndAdvance() {
-  $("director").classList.add("hidden");
+  closeDirector();
   if (state.round < state.maxRounds) nextRound();
 }
 
@@ -719,7 +849,7 @@ $("d-event-btn").onclick = async () => {
   $("d-event").value = "";
   const who = $("d-event-exit").value;
   if (who) {
-    await command({ kind: "exit", target: who });
+    await setCharacterActive(who, false);
     $("d-event-exit").value = "";
   }
 };
@@ -771,18 +901,46 @@ $("d-unmandate-btn").onclick = async () => {
   }
 };
 
-$("d-exit-btn").onclick = () =>
-  command({ kind: "exit", target: $("d-exit-who").value });
-$("d-enter-btn").onclick = () =>
-  command({ kind: "enter", target: $("d-exit-who").value });
+async function setCharacterActive(who, active) {
+  if (await command({ kind: active ? "enter" : "exit", target: who })) {
+    const c = state.chars.find((x) => x.name === who);
+    if (c) c.active = active;
+    fillCharSelects();
+    $("d-exit-who").value = who;
+    updateDirectorActiveControls();
+    return true;
+  }
+  return false;
+}
+
+$("d-exit-btn").onclick = () => setCharacterActive($("d-exit-who").value, false);
+$("d-enter-btn").onclick = () => setCharacterActive($("d-exit-who").value, true);
 
 // 攒完若干干预后,一键收起面板并进下一回合
 $("d-apply-next").onclick = closeDirectorAndAdvance;
 
+async function endCurrentStory({ confirmText, saveFirst = false, successMessage = "" } = {}) {
+  if (state.busy) return toast("演绎中,请等本回合结束", "err");
+  if (confirmText && !confirm(confirmText)) return;
+  const sid = state.sid;
+  if (sid && saveFirst) await api(`/api/story/${sid}/save`, { method: "POST" });
+  if (sid) {
+    try { await api(`/api/story/${sid}`, { method: "DELETE" }); } catch (e) {}
+  }
+  state.sid = null;
+  closeDirector();
+  $("theater").classList.add("hidden");
+  $("wizard").classList.remove("hidden");
+  if (successMessage) toast(successMessage, "ok");
+}
+
 $("t-save").onclick = async () => {
   try {
-    const r = await api(`/api/story/${state.sid}/save`, { method: "POST" });
-    toast("已存档 → " + r.md_path, "ok");
+    await endCurrentStory({
+      confirmText: "结束当前故事?",
+      saveFirst: true,
+      successMessage: "故事已结束",
+    });
   } catch (e) { toast(e.message, "err"); }
 };
 
@@ -830,14 +988,12 @@ $("s-save").onclick = async () => {
 };
 
 $("t-newstory").onclick = async () => {
-  if (state.busy) return toast("演绎中,请等本回合结束", "err");
-  if (!confirm("返回新建故事?当前进度仍可在 runs/ 找到存档。")) return;
-  if (state.sid) {
-    try { await api(`/api/story/${state.sid}`, { method: "DELETE" }); } catch (e) {}
-  }
-  state.sid = null;
-  $("theater").classList.add("hidden");
-  $("wizard").classList.remove("hidden");
+  try {
+    await endCurrentStory({
+      confirmText: "返回新建故事?当前故事将结束。",
+      saveFirst: true,
+    });
+  } catch (e) { toast(e.message, "err"); }
 };
 
 /* ---------- 交流与支持 ---------- */
@@ -863,8 +1019,8 @@ $("sup-qq").onclick = async () => {
   } catch (e) { toast("复制失败,群号:" + num, "err"); }
 };
 
-// 打赏:展开 / 收起收款码
-$("sup-pay").onclick = () => $("sup-pay-qr").classList.toggle("hidden");
+// 打赏入口暂时隐藏。
+// $("sup-pay").onclick = () => $("sup-pay-qr").classList.toggle("hidden");
 
 /* ---------- 初始化 ---------- */
 addChar();

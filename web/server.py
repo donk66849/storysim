@@ -138,7 +138,7 @@ def _char_dicts(session: Session) -> list[dict]:
     return [
         {
             "name": c.name, "persona": c.persona, "goal": c.goal,
-            "voice": c.voice, "directive": c.directive,
+            "voice": c.voice, "directive": c.directive, "active": c.active,
         }
         for c in session.characters
     ]

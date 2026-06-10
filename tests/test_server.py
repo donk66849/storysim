@@ -50,6 +50,7 @@ def test_create_story_returns_session():
     assert "session_id" in data
     assert data["title"] == "测试故事"
     assert len(data["characters"]) == 2
+    assert data["characters"][0]["active"] is True
     assert data["round"] == 0
 
 
@@ -267,6 +268,18 @@ def test_exit_command_then_round_skips_character():
     actors = [f["event"]["actor"] for f in frames if f["kind"] == "event"]
     assert "甲" in actors
     assert "乙" not in actors  # 乙退场后不再发言
+
+
+def test_state_returns_active_after_exit_and_enter():
+    client = make_client(["x"] * 10)
+    sid = _create(client)
+    client.post(f"/api/story/{sid}/command", json={"kind": "exit", "target": "乙"})
+    chars = client.get(f"/api/story/{sid}/state").json()["characters"]
+    assert next(c for c in chars if c["name"] == "乙")["active"] is False
+
+    client.post(f"/api/story/{sid}/command", json={"kind": "enter", "target": "乙"})
+    chars = client.get(f"/api/story/{sid}/state").json()["characters"]
+    assert next(c for c in chars if c["name"] == "乙")["active"] is True
 
 
 def test_finale_round_streams_closing_epilogue():

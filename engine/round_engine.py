@@ -26,17 +26,17 @@ def play_round(
     旁白大结局,给整段剧情一个明确收束。"""
     stage.start_round()
     produced: list[Event] = []
+    active_characters = [ch for ch in characters if ch.active]
+    cast_names = [ch.name for ch in active_characters]
 
     def emit(event: Event) -> None:
         produced.append(event)
         if on_event is not None:
             on_event(event)
 
-    emit(narrator.narrate(stage, llm, k, finale=finale))
-    for ch in characters:
-        if not ch.active:  # 已退场(死亡/离开)的角色不再发言
-            continue
-        emit(ch.act(stage, llm, k, finale=finale))
+    emit(narrator.narrate(stage, llm, k, finale=finale, cast_names=cast_names))
+    for ch in active_characters:
+        emit(ch.act(stage, llm, k, finale=finale, cast_names=cast_names))
     if finale:
-        emit(narrator.epilogue(stage, llm, k))
+        emit(narrator.epilogue(stage, llm, k, cast_names=cast_names))
     return produced
